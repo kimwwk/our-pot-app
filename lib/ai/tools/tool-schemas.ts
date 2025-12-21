@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { tool } from "ai"
 
 /**
  * Tool schemas for client-side execution
@@ -9,19 +10,19 @@ import { z } from "zod";
 // READ TOOLS (Immediate Execution)
 // ============================================================================
 
-export const getCategoriesTool = {
+export const getCategoriesTool = tool({
   description: "Fetch all active categories for the current account. Use this to see what categories are available when proposing expenses.",
-  parameters: z.object({}),
-};
+  inputSchema: z.object({}),
+});
 
-export const getMembersTool = {
+export const getMembersTool = tool({
   description: "Fetch all active members for the current account (people who can pay for transactions). Use this to see who can be assigned to transactions.",
-  parameters: z.object({}),
-};
+  inputSchema: z.object({}),
+});
 
-export const searchTransactionsTool = {
+export const searchTransactionsTool = tool({
   description: "Search and filter transactions. Use this to find existing transactions before proposing updates or deletes. Returns transactions with amounts in decimal format (e.g., 42.50 for £42.50).",
-  parameters: z.object({
+  inputSchema: z.object({
     query: z.string().optional().describe("Text to search in merchant and description fields"),
     startDate: z.string().optional().describe("ISO date string for range start (YYYY-MM-DD)"),
     endDate: z.string().optional().describe("ISO date string for range end (YYYY-MM-DD)"),
@@ -30,13 +31,13 @@ export const searchTransactionsTool = {
     type: z.enum(["EXPENSE", "DEPOSIT"]).optional().describe("Filter by transaction type"),
     limit: z.number().optional().default(20).describe("Maximum results to return (default: 20)"),
   }),
-};
+});
 
 // ============================================================================
 // PROPOSAL TOOLS (Buffered)
 // ============================================================================
 
-export const createTransactionChangeRequestTool = {
+export const createTransactionChangeRequestTool = tool({
   description: `Propose creating a new transaction (requires user approval).
 
 Amount handling: Provide amount as decimal (e.g., 42.50 for £42.50). The system will convert to pence automatically.
@@ -44,7 +45,7 @@ Amount handling: Provide amount as decimal (e.g., 42.50 for £42.50). The system
 Upsert behavior: If you provide an entityId that already exists in the current changeset, this will UPDATE that proposal instead of creating a duplicate.
 
 Action: Use "DISCARD" to remove a previously proposed transaction from the changeset.`,
-  parameters: z.object({
+  inputSchema: z.object({
     entityId: z.string().optional().describe("Unique ID for this change request. Provide same ID to update (upsert). Leave empty for new transactions."),
     type: z.enum(["EXPENSE", "DEPOSIT"]).describe("Transaction type: EXPENSE (money out) or DEPOSIT (money in)"),
     amount: z.number().positive().describe("Amount in currency format (e.g., 42.50 for £42.50). Must be positive with max 2 decimals"),
@@ -55,11 +56,11 @@ Action: Use "DISCARD" to remove a previously proposed transaction from the chang
     date: z.string().optional().describe("Transaction date (ISO YYYY-MM-DD). Defaults to today"),
     action: z.enum(["UPSERT", "DISCARD"]).optional().default("UPSERT").describe('UPSERT (add/update) or DISCARD (remove from changeset)'),
   }),
-};
+});
 
-export const updateTransactionChangeRequestTool = {
+export const updateTransactionChangeRequestTool = tool({
   description: `Propose updating an existing transaction (requires user approval). Only provide fields to change (partial update). Use searchTransactions() to find transaction IDs first.`,
-  parameters: z.object({
+  inputSchema: z.object({
     transactionId: z.string().describe("ID of the existing transaction to update"),
     amount: z.number().positive().optional().describe("New amount (decimal format). Only include if changing"),
     merchant: z.string().optional(),
@@ -69,32 +70,34 @@ export const updateTransactionChangeRequestTool = {
     date: z.string().optional().describe("ISO YYYY-MM-DD"),
     action: z.enum(["UPSERT", "DISCARD"]).optional().default("UPSERT"),
   }),
-};
+});
 
-export const deleteTransactionChangeRequestTool = {
+
+export const deleteTransactionChangeRequestTool = tool({
   description: `Propose soft-deleting an existing transaction (requires user approval). Transaction marked deleted but preserved in database.`,
-  parameters: z.object({
+  inputSchema: z.object({
     transactionId: z.string().describe("ID of transaction to delete"),
     action: z.enum(["UPSERT", "DISCARD"]).optional().default("UPSERT"),
   }),
-};
+});
 
-export const createCategoryChangeRequestTool = {
+
+export const createCategoryChangeRequestTool = tool({
   description: `Propose creating a new category (requires user approval).`,
-  parameters: z.object({
+  inputSchema: z.object({
     entityId: z.string().optional().describe("Unique ID for this change request. Provide same ID to update (upsert)"),
     name: z.string().describe("Category name (e.g., 'Groceries', 'Transport')"),
     icon: z.string().optional().describe("Optional emoji or icon identifier"),
     color: z.string().optional().describe("Optional hex color code (e.g., '#4CAF50')"),
     action: z.enum(["UPSERT", "DISCARD"]).optional().default("UPSERT"),
   }),
-};
+});
 
 // ============================================================================
 // CONFIRMATION TOOLS
 // ============================================================================
 
-export const confirmChangeSetTool = {
+export const confirmChangeSetTool = tool({
   description: `Submit accumulated changes for user review and approval. AI stream pauses, user sees review widget. User can approve (execute), reject with feedback (return to building), or reject completely (discard).
 
 After calling this:
@@ -106,16 +109,16 @@ After calling this:
 Rejection handling:
 - Rejected with feedback: Fix specific issues, re-submit
 - Rejected completely: Start fresh with different approach`,
-  parameters: z.object({
+  inputSchema: z.object({
     title: z.string().describe("Short summary (e.g., 'Add groceries expense', 'Update rent payment')"),
     description: z.string().optional().describe("Detailed explanation of what's changing and why"),
   }),
-};
+});
 
-export const resetChangeSetTool = {
+export const resetChangeSetTool = tool({
   description: `Clear all accumulated changes and start fresh. Rare - usually user rejection handles this. Only use if you need to completely discard the current changeset and start over.`,
-  parameters: z.object({}),
-};
+  inputSchema: z.object({}),
+});
 
 // ============================================================================
 // TOOL REGISTRY
