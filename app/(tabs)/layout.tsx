@@ -1,7 +1,7 @@
 "use client";
 
-import { BottomNav } from "@/components/widgets/BottomNav"
-import { PotSwitcher } from "@/components/widgets/PotSwitcher"
+import { BottomNav } from "@/components/common/BottomNav"
+import { PotSwitcher } from "@/components/common/PotSwitcher"
 
 export default function TabsLayout({
     children,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { TransactionList } from "@/components/widgets/TransactionList";
+import { TransactionList } from "@/components/features/transactions/TransactionList";
 import { MonthSlider } from "@/components/features/transactions/MonthSlider";
 import { useTransactions } from "@/lib/data/hooks/useTransactions";
 import { AddExpenseSheet } from "@/components/sheets/AddExpenseSheet";

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { KittyBalanceCard } from "@/components/widgets/KittyBalanceCard";
-import { ToReimburseCard } from "@/components/widgets/ToReimburseCard";
-import { QuickActions } from "@/components/widgets/QuickActions";
+import { KittyBalanceCard } from "@/components/features/dashboard/KittyBalanceCard";
+import { ToReimburseCard } from "@/components/features/dashboard/ToReimburseCard";
+import { QuickActions } from "@/components/features/dashboard/QuickActions";
 import { AddExpenseSheet } from "@/components/sheets/AddExpenseSheet";
 import { AddContributeSheet } from "@/components/sheets/AddContributeSheet";
 import { EditExpenseSheet } from "@/components/sheets/EditExpenseSheet";
@@ -14,7 +14,7 @@ import { TransactionRepository } from "@/lib/data/repositories/TransactionReposi
 import { MemberRepository } from "@/lib/data/repositories/MemberRepository";
 import { generateId } from "@/lib/utils/ulid";
 import { toast } from "sonner";
-import { TransactionList } from "@/components/widgets/TransactionList";
+import { TransactionList } from "@/components/features/transactions/TransactionList";
 import { useTransactions } from "@/lib/data/hooks/useTransactions";
 import { useRouter } from "next/navigation";
 

@@ -12,7 +12,7 @@ import { TransactionRepository } from "@/lib/data/repositories/TransactionReposi
 import { toast } from "sonner"
 import { Loader2, TrendingUp, TrendingDown } from "lucide-react"
 import { SheetActions } from "@/components/common/sheet"
-import { TransactionList } from "@/components/widgets/TransactionList"
+import { TransactionList } from "@/components/features/transactions/TransactionList"
 
 interface MemberDetailSheetProps {
     member: Member | null
