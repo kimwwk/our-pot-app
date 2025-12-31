@@ -4,6 +4,11 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from "../ui/sheet";
 import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
 
+/**
+ * @deprecated Use AnimatedSheet for new sheets. This component uses Radix Sheet
+ * which doesn't support custom animations. AnimatedSheet uses framer-motion and
+ * renders via portal to properly overlay the entire app including bottom nav.
+ */
 interface BaseSheetProps {
   isOpen: boolean;
   onClose: () => void;

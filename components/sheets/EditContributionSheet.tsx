@@ -2,18 +2,27 @@
 
 import { useState, useEffect } from "react"
 import { Loader2, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { BaseSheet } from "@/components/common/BaseSheet"
-import { CurrencyInput } from "@/components/common/CurrencyInput"
-import { MemberPicker } from "@/components/common/MemberPicker"
+import { AnimatedSheet } from "@/components/common/AnimatedSheet"
+import { AmountInputOverlay } from "@/components/common/AmountInputOverlay"
+import { MemberPickerOverlay } from "@/components/common/MemberPickerOverlay"
+import {
+    AmountHero,
+    FormCard,
+    FormDivider,
+    FormFieldButton,
+    QuickAmountButtons,
+    CollapsibleSection,
+    FormDateInput,
+    FormTextArea,
+    SheetActions
+} from "@/components/common/sheet"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useMembers } from "@/lib/data/hooks/useMembers"
 import { useAccount } from "@/lib/data/contexts/AccountContext"
 import { useSQLite } from "@/lib/data/contexts/SQLiteContext"
 import { TransactionRepository } from "@/lib/data/repositories/TransactionRepository"
 import { Transaction } from "@/lib/data/types"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
 
 interface EditContributionSheetProps {
     transactionId: string | null
@@ -21,6 +30,8 @@ interface EditContributionSheetProps {
     onClose: () => void
     onSuccess?: () => void
 }
+
+type OverlayType = "amount" | "member" | null
 
 export function EditContributionSheet({ transactionId, isOpen, onClose, onSuccess }: EditContributionSheetProps) {
     const { members } = useMembers()
@@ -32,11 +43,17 @@ export function EditContributionSheet({ transactionId, isOpen, onClose, onSucces
     const [isDeleting, setIsDeleting] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
+    // Form state
     const [amount, setAmount] = useState("")
     const [selectedMemberId, setSelectedMemberId] = useState<string>("")
+    const [date, setDate] = useState("")
+    const [note, setNote] = useState("")
+
+    // UI state
+    const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
 
     const humanMembers = members.filter(m => !m.is_kitty)
-    const quickAmounts = [50, 100, 200, 500]
+    const selectedMember = members.find(m => m.id === selectedMemberId)
 
     // Load transaction data
     useEffect(() => {
@@ -54,6 +71,9 @@ export function EditContributionSheet({ transactionId, isOpen, onClose, onSucces
                     setTransaction(data)
                     setAmount((data.amount / 100).toString())
                     setSelectedMemberId(data.member_id)
+                    setDate(data.date)
+                    // Don't pre-fill note with auto-generated description
+                    setNote("")
                 } else {
                     toast.error("Transaction not found")
                     onClose()
@@ -95,7 +115,9 @@ export function EditContributionSheet({ transactionId, isOpen, onClose, onSucces
                 member_id: selectedMemberId,
                 type: "DEPOSIT",
                 amount: amountInCents,
-                date: transaction.date,
+                // If user entered a note, use it; otherwise keep existing description
+                description: note || transaction.description,
+                date,
             })
 
             toast.success("Contribution updated")
@@ -133,94 +155,123 @@ export function EditContributionSheet({ transactionId, isOpen, onClose, onSucces
         }
     }
 
-    const getCurrencySymbol = (currency: string) => {
-        const symbols: Record<string, string> = {
-            GBP: "£",
-            USD: "$",
-            EUR: "€",
-        }
-        return symbols[currency] || currency
+    const getCurrencySymbol = (currency?: string) => {
+        const symbols: Record<string, string> = { GBP: "£", USD: "$", EUR: "€" }
+        return symbols[currency || "GBP"] || currency || "£"
     }
 
+    const currencySymbol = getCurrencySymbol(account?.currency)
+    const canSubmit = amount && parseFloat(amount) > 0 && selectedMemberId
+
     return (
-        <BaseSheet
-            isOpen={isOpen}
-            onClose={onClose}
-            contentClassName="overflow-y-auto"
-            title="Edit Contribution"
-            headerAction={
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={handleDelete}
-                    disabled={isDeleting || isLoading}
-                >
-                    {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                </Button>
-            }
-        >
-            {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-            ) : (
-                <div className="px-5 pb-6 space-y-6">
-                        {/* Amount Input */}
-                        <div className="space-y-2">
-                            <Label>Amount</Label>
-                            <CurrencyInput
-                                value={amount}
-                                onChange={setAmount}
-                                currency={account?.currency || "GBP"}
-                                size="large"
-                                className="text-center"
-                            />
-                        </div>
-
-                        {/* Quick Amount Buttons */}
-                        <div className="grid grid-cols-4 gap-2">
-                            {quickAmounts.map((value) => (
-                                <Button
-                                    key={value}
-                                    variant="outline"
-                                    onClick={() => handleQuickAmount(value)}
-                                    className={cn("h-12", amount === value.toString() && "border-primary bg-primary/10")}
-                                >
-                                    {getCurrencySymbol(account?.currency || "GBP")}{value}
-                                </Button>
-                            ))}
-                        </div>
-
-                        {/* Member Selector */}
-                        <div className="space-y-2">
-                            <Label>Who is contributing?</Label>
-                            <MemberPicker
-                                members={humanMembers}
-                                selectedMemberId={selectedMemberId}
-                                onSelect={setSelectedMemberId}
-                                placeholder="Select member"
-                                memberSubtitle=""
-                            />
-                        </div>
-
-                        {/* Update Button */}
-                        <Button
-                            onClick={handleUpdate}
-                            disabled={!amount || !selectedMemberId || isSaving}
-                            className="w-full h-12 text-base"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Updating...
-                                </>
-                            ) : (
-                                `Update ${amount ? getCurrencySymbol(account?.currency || "GBP") + amount : ""} Contribution`
-                            )}
-                        </Button>
+        <>
+            <AnimatedSheet isOpen={isOpen} onClose={onClose}>
+                {isLoading ? (
+                    <div className="flex-1 flex items-center justify-center py-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
+                ) : (
+                    <>
+                        {/* Amount Hero - Tappable */}
+                        <AmountHero
+                            amount={amount}
+                            currencySymbol={currencySymbol}
+                            onTap={() => setActiveOverlay("amount")}
+                        />
+
+                        {/* Scrollable Form Content */}
+                        <div className="flex-1 overflow-y-auto px-4">
+                            {/* Quick Amount Buttons */}
+                            <QuickAmountButtons
+                                amounts={[50, 100, 200, 500]}
+                                currencySymbol={currencySymbol}
+                                onSelect={handleQuickAmount}
+                                selectedAmount={parseFloat(amount) || undefined}
+                                className="mb-4"
+                            />
+
+                            {/* Main Fields Card */}
+                            <FormCard>
+                                <FormFieldButton
+                                    icon={
+                                        selectedMember ? (
+                                            <Avatar className="h-7 w-7">
+                                                <AvatarImage src={selectedMember.avatar_url} />
+                                                <AvatarFallback className="text-[10px]">
+                                                    {selectedMember.name[0]}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        ) : (
+                                            <div className="w-7 h-7 rounded-full bg-muted" />
+                                        )
+                                    }
+                                    label="Contributor"
+                                    value={selectedMember?.name}
+                                    placeholder="Select member"
+                                    onTap={() => setActiveOverlay("member")}
+                                />
+                            </FormCard>
+
+                            {/* Optional Details with Delete */}
+                            <CollapsibleSection title="More options">
+                                <FormDateInput label="Date" value={date} onChange={setDate} />
+                                <FormDivider />
+                                <FormTextArea
+                                    label="Note"
+                                    value={note}
+                                    onChange={setNote}
+                                    placeholder="Add a note..."
+                                />
+                                <FormDivider />
+                                {/* Delete */}
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="w-full px-4 py-3.5 flex items-center gap-3 text-destructive/70 hover:text-destructive active:bg-destructive/5 transition-colors disabled:opacity-50"
+                                    type="button"
+                                >
+                                    <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
+                                        <Trash2 className="h-5 w-5" />
+                                    </div>
+                                    <span className="text-[15px] font-medium">
+                                        {isDeleting ? "Deleting..." : "Delete contribution"}
+                                    </span>
+                                </button>
+                            </CollapsibleSection>
+                        </div>
+
+                        {/* Bottom Actions */}
+                        <SheetActions
+                            onCancel={onClose}
+                            onSubmit={handleUpdate}
+                            submitLabel={amount ? `Save ${currencySymbol}${amount}` : "Save Changes"}
+                            canSubmit={!!canSubmit}
+                            isSubmitting={isSaving}
+                            submittingLabel="Saving..."
+                        />
+                    </>
                 )}
-        </BaseSheet>
+            </AnimatedSheet>
+
+            {/* Overlays */}
+            <AmountInputOverlay
+                isOpen={activeOverlay === "amount"}
+                onClose={() => setActiveOverlay(null)}
+                amount={amount}
+                onAmountChange={setAmount}
+                currencySymbol={currencySymbol}
+            />
+
+            <MemberPickerOverlay
+                isOpen={activeOverlay === "member"}
+                onClose={() => setActiveOverlay(null)}
+                members={humanMembers}
+                selectedMemberId={selectedMemberId}
+                onSelect={setSelectedMemberId}
+                title="Contributor"
+                showPotOption={false}
+                memberDescription="Adding to pot"
+            />
+        </>
     )
 }

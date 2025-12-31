@@ -1,16 +1,27 @@
 "use client"
 
-import { useState } from "react"
-import { ChevronDown } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { BaseSheet } from "@/components/common/BaseSheet"
-import { CurrencyInput } from "@/components/common/CurrencyInput"
-import { MemberPicker } from "@/components/common/MemberPicker"
+import { useState, useEffect } from "react"
+import { Wallet } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AnimatedSheet } from "@/components/common/AnimatedSheet"
+import { AmountInputOverlay } from "@/components/common/AmountInputOverlay"
+import { CategoryPickerOverlay } from "@/components/common/CategoryPickerOverlay"
+import { MemberPickerOverlay } from "@/components/common/MemberPickerOverlay"
+import {
+    AmountHero,
+    FormCard,
+    FormDivider,
+    FormFieldButton,
+    FormTextInput,
+    CollapsibleSection,
+    FormDateInput,
+    FormTextArea,
+    SheetActions
+} from "@/components/common/sheet"
 import { useCategories } from "@/lib/data/hooks/useCategories"
 import { useMembers } from "@/lib/data/hooks/useMembers"
 import { useAccount } from "@/lib/data/contexts/AccountContext"
-import { cn, getTodayDateString } from "@/lib/utils"
+import { getTodayDateString } from "@/lib/utils"
 
 interface AddExpenseSheetProps {
     isOpen: boolean
@@ -24,164 +35,207 @@ interface AddExpenseSheetProps {
     }) => void
 }
 
-export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetProps) {
-    const { categories } = useCategories();
-    const { members } = useMembers(); // All members including kitty
-    const { account } = useAccount();
+type OverlayType = "amount" | "category" | "payer" | null
 
-    const [description, setDescription] = useState("")
+export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetProps) {
+    const { categories } = useCategories()
+    const { members } = useMembers()
+    const { account } = useAccount()
+
+    // Form state
+    const [merchant, setMerchant] = useState("")
     const [amount, setAmount] = useState("")
     const [selectedCategory, setSelectedCategory] = useState<string>("")
-    const [memberId, setMemberId] = useState<string>("") // defaulting to empty, user must pick or we logic it
-    const [showCategoryPicker, setShowCategoryPicker] = useState(false)
+    const [memberId, setMemberId] = useState<string>("")
+    const [date, setDate] = useState(() => getTodayDateString())
+    const [note, setNote] = useState("")
 
-    // Helpers to get data
-    const selectedCategoryData = categories.find((c) => c.id === selectedCategory)
+    // UI state
+    const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
 
-    // Logic for "Who Paid":
-    // In v0 it was "Paid By: Kitty or Member".
-    // In our DB:
-    // - If paid by Kitty: member_id = kitty_member_id (is_kitty=1)
-    // - If paid by Member: member_id = human_member_id
-    // We need to find the "Kitty" member to simulate "Paid by Pot".
-    const kittyMember = members.find(m => m.is_kitty);
+    const kittyMember = members.find(m => m.is_kitty)
+    const selectedCategoryData = categories.find(c => c.id === selectedCategory)
+    const selectedPayerData = members.find(m => m.id === memberId)
+
+    // Auto-init memberId to kitty when members load
+    useEffect(() => {
+        if (!memberId && kittyMember) {
+            setMemberId(kittyMember.id)
+        }
+    }, [memberId, kittyMember])
+
+    // Open amount overlay first when sheet opens
+    useEffect(() => {
+        if (isOpen) {
+            const timer = setTimeout(() => {
+                setActiveOverlay("amount")
+            }, 100)
+            return () => clearTimeout(timer)
+        }
+    }, [isOpen])
+
+    // Reset form when sheet closes
+    useEffect(() => {
+        if (!isOpen) {
+            const timer = setTimeout(() => {
+                setMerchant("")
+                setAmount("")
+                setSelectedCategory("")
+                setMemberId("")
+                setDate(getTodayDateString())
+                setNote("")
+                setActiveOverlay(null)
+            }, 300)
+            return () => clearTimeout(timer)
+        }
+    }, [isOpen])
 
     const handleSubmit = () => {
-        const amountNum = parseFloat(amount);
-        if (description && amountNum > 0 && selectedCategory) {
-            // Default to kitty if no member selected (shouldn't happen if we default)
-            const finalMemberId = memberId || kittyMember?.id;
+        const amountNum = parseFloat(amount)
+        if (amountNum > 0 && selectedCategory) {
+            const finalMemberId = memberId || kittyMember?.id
 
             if (!finalMemberId) {
-                console.error("No payer selected and no kitty found");
-                return;
+                console.error("No payer selected and no kitty found")
+                return
             }
 
             onSubmit({
-                description,
+                description: merchant || selectedCategoryData?.name || "Expense",
                 amount: amountNum,
                 categoryId: selectedCategory,
                 memberId: finalMemberId,
-                date: getTodayDateString()
+                date
             })
 
-            // Reset
-            setDescription("")
-            setAmount("")
-            setSelectedCategory("")
-            setMemberId("") // Will default back to kitty roughly
             onClose()
         }
     }
 
-    // Auto-init memberId to kitty if not set
-    if (!memberId && kittyMember) {
-        setMemberId(kittyMember.id);
+    const canSubmit = amount && parseFloat(amount) > 0 && selectedCategory
+
+    const getCurrencySymbol = (curr?: string) => {
+        const symbols: Record<string, string> = { GBP: "£", USD: "$", EUR: "€" }
+        return symbols[curr || "GBP"] || curr || "£"
     }
 
+    const currencySymbol = getCurrencySymbol(account?.currency)
+    const hasDetails = !!note || date !== getTodayDateString()
+
     return (
-        <BaseSheet isOpen={isOpen} onClose={onClose} title="Add Expense">
-            <div className="px-5 pb-6 space-y-6">
-                {/* Amount Input */}
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Amount
-                    </label>
-                    <CurrencyInput
-                        value={amount}
-                        onChange={setAmount}
-                        currency={account?.currency}
-                        className="border-2 text-center"
-                    />
+        <>
+            <AnimatedSheet isOpen={isOpen} onClose={onClose}>
+                {/* Amount Hero - Tappable, updates live when numpad is open */}
+                <AmountHero
+                    amount={amount}
+                    currencySymbol={currencySymbol}
+                    onTap={() => setActiveOverlay("amount")}
+                />
+
+                {/* Scrollable Form Content */}
+                <div className="flex-1 overflow-y-auto px-4">
+                    {/* Main Fields Card */}
+                    <FormCard>
+                        <FormTextInput
+                            label="Merchant"
+                            value={merchant}
+                            onChange={setMerchant}
+                            placeholder="Where did you spend?"
+                            onBlur={() => {
+                                // Open category picker after merchant entry if no category selected
+                                if (merchant && !selectedCategory) {
+                                    setTimeout(() => setActiveOverlay("category"), 150)
+                                }
+                            }}
+                        />
+                        <FormDivider />
+                        <FormFieldButton
+                            icon={<span className="text-xl">{selectedCategoryData?.icon || '📦'}</span>}
+                            label="Category"
+                            value={selectedCategoryData?.name}
+                            placeholder="Select category"
+                            onTap={() => setActiveOverlay("category")}
+                        />
+                        <FormDivider />
+                        <FormFieldButton
+                            icon={
+                                selectedPayerData?.is_kitty ? (
+                                    <Wallet className="h-5 w-5 text-primary" />
+                                ) : selectedPayerData ? (
+                                    <Avatar className="h-7 w-7">
+                                        <AvatarImage src={selectedPayerData.avatar_url} />
+                                        <AvatarFallback className="text-[10px]">
+                                            {selectedPayerData.name[0]}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                ) : (
+                                    <div className="w-7 h-7 rounded-full bg-muted" />
+                                )
+                            }
+                            label="Paid by"
+                            value={selectedPayerData?.is_kitty ? "The Pot" : selectedPayerData?.name}
+                            placeholder="Select payer"
+                            badge={
+                                selectedPayerData && !selectedPayerData.is_kitty ? (
+                                    <span className="text-[9px] text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+                                        REIMBURSE
+                                    </span>
+                                ) : undefined
+                            }
+                            onTap={() => setActiveOverlay("payer")}
+                        />
+                    </FormCard>
+
+                    {/* Optional Details Section (Date & Note) */}
+                    <CollapsibleSection title="More options" forceExpanded={hasDetails}>
+                        <FormDateInput label="Date" value={date} onChange={setDate} />
+                        <FormDivider />
+                        <FormTextArea
+                            label="Note"
+                            value={note}
+                            onChange={setNote}
+                            placeholder="Add details..."
+                        />
+                    </CollapsibleSection>
                 </div>
 
-                {/* Description */}
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Description
-                    </label>
-                    <Input
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="What was this expense for?"
-                        className="h-11 border-2"
-                    />
-                </div>
+                {/* Bottom Action Buttons */}
+                <SheetActions
+                    onCancel={onClose}
+                    onSubmit={handleSubmit}
+                    submitLabel="Save Expense"
+                    canSubmit={!!canSubmit}
+                />
+            </AnimatedSheet>
 
-                {/* Category Selector */}
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Category
-                    </label>
-                    <Button
-                        variant="outline"
-                        className="w-full justify-between h-11 border-2 hover:bg-accent"
-                        onClick={() => setShowCategoryPicker(!showCategoryPicker)}
-                    >
-                            {selectedCategoryData ? (
-                                <span className="flex items-center gap-2">
-                                    <span className="min-w-4">{selectedCategoryData.icon || '📦'}</span>
-                                    {selectedCategoryData.name}
-                                </span>
-                            ) : (
-                                <span className="text-muted-foreground">Select category</span>
-                            )}
-                            <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform", showCategoryPicker && "rotate-180")} />
-                        </Button>
+            {/* Overlays */}
+            <AmountInputOverlay
+                isOpen={activeOverlay === "amount"}
+                onClose={() => setActiveOverlay(null)}
+                amount={amount}
+                onAmountChange={setAmount}
+                currencySymbol={currencySymbol}
+            />
 
-                    {showCategoryPicker && (
-                        <div className="grid grid-cols-3 gap-2 mt-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                            {categories.map((cat) => (
-                                <button
-                                    key={cat.id}
-                                    onClick={() => {
-                                        setSelectedCategory(cat.id)
-                                        setShowCategoryPicker(false)
-                                    }}
-                                    className={cn(
-                                        "p-3 rounded-lg text-center transition-all border-2 active:scale-95",
-                                        selectedCategory === cat.id
-                                            ? "bg-primary text-primary-foreground border-primary"
-                                            : "bg-muted/30 hover:bg-muted border-transparent"
-                                    )}
-                                >
-                                    <span className="text-xl block mb-1">{cat.icon || '📦'}</span>
-                                    <span className="text-[10px] font-medium truncate w-full block">{cat.name}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
+            <CategoryPickerOverlay
+                isOpen={activeOverlay === "category"}
+                onClose={() => setActiveOverlay(null)}
+                categories={categories}
+                selectedCategoryId={selectedCategory}
+                onSelect={setSelectedCategory}
+            />
 
-                {/* Paid By Selector */}
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Paid By
-                    </label>
-                    <MemberPicker
-                        members={members}
-                        selectedMemberId={memberId}
-                        onSelect={setMemberId}
-                        placeholder="Select payer"
-                        memberSubtitle="reimburse"
-                    />
-                </div>
-
-                    {/* Receipt upload button (Mock) */}
-                    {/* <Button variant="outline" className="w-full h-11 rounded-lg bg-transparent text-sm border-dashed text-muted-foreground">
-                        <Camera className="h-4 w-4 mr-2" />
-                        Attach Receipt (optional)
-                    </Button> */}
-
-                {/* Submit */}
-                <Button
-                    className="w-full h-12 text-base font-semibold"
-                    onClick={handleSubmit}
-                    disabled={!description || !amount || !selectedCategory}
-                >
-                    Add Expense
-                </Button>
-            </div>
-        </BaseSheet>
+            <MemberPickerOverlay
+                isOpen={activeOverlay === "payer"}
+                onClose={() => setActiveOverlay(null)}
+                members={members}
+                selectedMemberId={memberId}
+                onSelect={setMemberId}
+                title="Paid by"
+                potLabel="The Pot"
+                potDescription="From shared pot"
+                memberDescription="Pot will reimburse"
+            />
+        </>
     )
 }

@@ -1,19 +1,29 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronDown, Loader2, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { BaseSheet } from "@/components/common/BaseSheet"
-import { CurrencyInput } from "@/components/common/CurrencyInput"
-import { MemberPicker } from "@/components/common/MemberPicker"
+import { Loader2, Trash2, Wallet } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AnimatedSheet } from "@/components/common/AnimatedSheet"
+import { AmountInputOverlay } from "@/components/common/AmountInputOverlay"
+import { CategoryPickerOverlay } from "@/components/common/CategoryPickerOverlay"
+import { MemberPickerOverlay } from "@/components/common/MemberPickerOverlay"
+import {
+    AmountHero,
+    FormCard,
+    FormDivider,
+    FormFieldButton,
+    FormTextInput,
+    CollapsibleSection,
+    FormDateInput,
+    FormTextArea,
+    SheetActions
+} from "@/components/common/sheet"
 import { useCategories } from "@/lib/data/hooks/useCategories"
 import { useMembers } from "@/lib/data/hooks/useMembers"
 import { useAccount } from "@/lib/data/contexts/AccountContext"
 import { useSQLite } from "@/lib/data/contexts/SQLiteContext"
 import { TransactionRepository } from "@/lib/data/repositories/TransactionRepository"
 import { Transaction } from "@/lib/data/types"
-import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 interface EditExpenseSheetProps {
@@ -22,6 +32,8 @@ interface EditExpenseSheetProps {
     onClose: () => void
     onSuccess?: () => void
 }
+
+type OverlayType = "amount" | "category" | "payer" | null
 
 export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: EditExpenseSheetProps) {
     const { categories } = useCategories()
@@ -34,13 +46,19 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
     const [isDeleting, setIsDeleting] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
-    const [description, setDescription] = useState("")
+    // Form state
+    const [merchant, setMerchant] = useState("")
     const [amount, setAmount] = useState("")
     const [selectedCategory, setSelectedCategory] = useState<string>("")
     const [memberId, setMemberId] = useState<string>("")
-    const [showCategoryPicker, setShowCategoryPicker] = useState(false)
+    const [date, setDate] = useState("")
+    const [note, setNote] = useState("")
 
-    const selectedCategoryData = categories.find((c) => c.id === selectedCategory)
+    // UI state
+    const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
+
+    const selectedCategoryData = categories.find(c => c.id === selectedCategory)
+    const selectedPayerData = members.find(m => m.id === memberId)
 
     // Load transaction data
     useEffect(() => {
@@ -56,10 +74,11 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
                 const data = await repo.getById(transactionId)
                 if (data) {
                     setTransaction(data)
-                    setDescription(data.description)
+                    setMerchant(data.description)
                     setAmount((Math.abs(data.amount) / 100).toString())
                     setSelectedCategory(data.category_id || "")
                     setMemberId(data.member_id)
+                    setDate(data.date)
                 } else {
                     toast.error("Transaction not found")
                     onClose()
@@ -77,7 +96,7 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
     }, [db, transactionId, isOpen, onClose])
 
     const handleUpdate = async () => {
-        if (!db || !account || !transaction || !description || !amount || !selectedCategory) return
+        if (!db || !account || !transaction || !merchant || !amount || !selectedCategory) return
 
         setIsSaving(true)
         try {
@@ -88,10 +107,9 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
                 member_id: memberId,
                 category_id: selectedCategory,
                 type: "EXPENSE",
-                // Store as positive, trigger will handle sign
                 amount: Math.abs(cents),
-                description,
-                date: transaction.date,
+                description: merchant,
+                date: date || transaction.date,
             })
 
             toast.success("Expense updated")
@@ -129,131 +147,148 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
         }
     }
 
+    const canSubmit = amount && parseFloat(amount) > 0 && selectedCategory
+
+    const getCurrencySymbol = (curr?: string) => {
+        const symbols: Record<string, string> = { GBP: "£", USD: "$", EUR: "€" }
+        return symbols[curr || "GBP"] || curr || "£"
+    }
+
+    const currencySymbol = getCurrencySymbol(account?.currency)
+
     return (
-        <BaseSheet
-            isOpen={isOpen}
-            onClose={onClose}
-            title="Edit Expense"
-            headerAction={
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={handleDelete}
-                    disabled={isDeleting || isLoading}
-                >
-                    {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                </Button>
-            }
-        >
-            {isLoading ? (
-                    <div className="flex items-center justify-center py-12">
+        <>
+            <AnimatedSheet isOpen={isOpen} onClose={onClose}>
+                {isLoading ? (
+                    <div className="flex-1 flex items-center justify-center py-12">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
                 ) : (
-                    <div className="px-5 pb-6 space-y-6">
-                        {/* Amount Input */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                Amount
-                            </label>
-                            <CurrencyInput
-                                value={amount}
-                                onChange={setAmount}
-                                currency={account?.currency}
-                                className="border-2 text-center"
-                            />
-                        </div>
+                    <>
+                        {/* Amount Hero - Tappable, updates live when numpad is open */}
+                        <AmountHero
+                            amount={amount}
+                            currencySymbol={currencySymbol}
+                            onTap={() => setActiveOverlay("amount")}
+                        />
 
-                        {/* Description */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                Description
-                            </label>
-                            <Input
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="What was this expense for?"
-                                className="h-11 border-2"
-                            />
-                        </div>
+                        {/* Scrollable Form Content */}
+                        <div className="flex-1 overflow-y-auto px-4">
+                            {/* Main Fields Card */}
+                            <FormCard>
+                                <FormTextInput
+                                    label="Merchant"
+                                    value={merchant}
+                                    onChange={setMerchant}
+                                    placeholder="Where did you spend?"
+                                />
+                                <FormDivider />
+                                <FormFieldButton
+                                    icon={<span className="text-xl">{selectedCategoryData?.icon || '📦'}</span>}
+                                    label="Category"
+                                    value={selectedCategoryData?.name}
+                                    placeholder="Select category"
+                                    onTap={() => setActiveOverlay("category")}
+                                />
+                                <FormDivider />
+                                <FormFieldButton
+                                    icon={
+                                        selectedPayerData?.is_kitty ? (
+                                            <Wallet className="h-5 w-5 text-primary" />
+                                        ) : selectedPayerData ? (
+                                            <Avatar className="h-7 w-7">
+                                                <AvatarImage src={selectedPayerData.avatar_url} />
+                                                <AvatarFallback className="text-[10px]">
+                                                    {selectedPayerData.name[0]}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        ) : (
+                                            <div className="w-7 h-7 rounded-full bg-muted" />
+                                        )
+                                    }
+                                    label="Paid by"
+                                    value={selectedPayerData?.is_kitty ? "The Pot" : selectedPayerData?.name}
+                                    placeholder="Select payer"
+                                    badge={
+                                        selectedPayerData && !selectedPayerData.is_kitty ? (
+                                            <span className="text-[9px] text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+                                                REIMBURSE
+                                            </span>
+                                        ) : undefined
+                                    }
+                                    onTap={() => setActiveOverlay("payer")}
+                                />
+                            </FormCard>
 
-                        {/* Category Selector */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                Category
-                            </label>
-                            <Button
-                                variant="outline"
-                                className="w-full justify-between h-11 border-2 hover:bg-accent"
-                                onClick={() => setShowCategoryPicker(!showCategoryPicker)}
-                            >
-                                {selectedCategoryData ? (
-                                    <span className="flex items-center gap-2">
-                                        <span className="text-lg">{selectedCategoryData.icon || '📦'}</span>
-                                        <span className="font-medium">{selectedCategoryData.name}</span>
+                            {/* Optional Details Section (Date, Note & Delete) */}
+                            <CollapsibleSection title="More options">
+                                <FormDateInput label="Date" value={date} onChange={setDate} />
+                                <FormDivider />
+                                <FormTextArea
+                                    label="Note"
+                                    value={note}
+                                    onChange={setNote}
+                                    placeholder="Add details..."
+                                />
+                                <FormDivider />
+                                {/* Delete */}
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="w-full px-4 py-3.5 flex items-center gap-3 text-destructive/70 hover:text-destructive active:bg-destructive/5 transition-colors disabled:opacity-50"
+                                    type="button"
+                                >
+                                    <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
+                                        <Trash2 className="h-5 w-5" />
+                                    </div>
+                                    <span className="text-[15px] font-medium">
+                                        {isDeleting ? "Deleting..." : "Delete expense"}
                                     </span>
-                                ) : (
-                                    <span className="text-muted-foreground">Select category</span>
-                                )}
-                                <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform", showCategoryPicker && "rotate-180")} />
-                            </Button>
-
-                            {showCategoryPicker && (
-                                <div className="grid grid-cols-3 gap-2 mt-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                    {categories.map((cat) => (
-                                        <button
-                                            key={cat.id}
-                                            onClick={() => {
-                                                setSelectedCategory(cat.id)
-                                                setShowCategoryPicker(false)
-                                            }}
-                                            className={cn(
-                                                "p-3 rounded-lg text-center transition-all border-2 active:scale-95",
-                                                selectedCategory === cat.id
-                                                    ? "bg-primary text-primary-foreground border-primary"
-                                                    : "bg-muted/30 hover:bg-muted border-transparent"
-                                            )}
-                                        >
-                                            <span className="text-xl block mb-1">{cat.icon || '📦'}</span>
-                                            <span className="text-[10px] font-medium truncate w-full block">{cat.name}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                                </button>
+                            </CollapsibleSection>
                         </div>
 
-                        {/* Paid By Selector */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                Paid By
-                            </label>
-                            <MemberPicker
-                                members={members}
-                                selectedMemberId={memberId}
-                                onSelect={setMemberId}
-                                placeholder="Select payer"
-                                memberSubtitle="reimburse"
-                            />
-                        </div>
-
-                        {/* Update Button */}
-                        <Button
-                            className="w-full h-12 text-base font-semibold"
-                            onClick={handleUpdate}
-                            disabled={!description || !amount || !selectedCategory || isSaving}
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Updating...
-                                </>
-                            ) : (
-                                "Update Expense"
-                            )}
-                        </Button>
-                    </div>
+                        {/* Bottom Action Buttons */}
+                        <SheetActions
+                            onCancel={onClose}
+                            onSubmit={handleUpdate}
+                            submitLabel="Save Changes"
+                            canSubmit={!!canSubmit}
+                            isSubmitting={isSaving}
+                            submittingLabel="Saving..."
+                        />
+                    </>
                 )}
-        </BaseSheet>
+            </AnimatedSheet>
+
+            {/* Overlays */}
+            <AmountInputOverlay
+                isOpen={activeOverlay === "amount"}
+                onClose={() => setActiveOverlay(null)}
+                amount={amount}
+                onAmountChange={setAmount}
+                currencySymbol={currencySymbol}
+            />
+
+            <CategoryPickerOverlay
+                isOpen={activeOverlay === "category"}
+                onClose={() => setActiveOverlay(null)}
+                categories={categories}
+                selectedCategoryId={selectedCategory}
+                onSelect={setSelectedCategory}
+            />
+
+            <MemberPickerOverlay
+                isOpen={activeOverlay === "payer"}
+                onClose={() => setActiveOverlay(null)}
+                members={members}
+                selectedMemberId={memberId}
+                onSelect={setMemberId}
+                title="Paid by"
+                potLabel="The Pot"
+                potDescription="From shared pot"
+                memberDescription="Pot will reimburse"
+            />
+        </>
     )
 }

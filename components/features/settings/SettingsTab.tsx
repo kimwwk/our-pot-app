@@ -1,37 +1,37 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Bell, Users, Shield, HelpCircle, ChevronRight, Moon, Palette, Info, Download, Upload, Bug } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { useTheme } from "next-themes";
-import { CategoryManager } from "@/components/forms/CategoryManager";
-import { MemberManager } from "@/components/forms/MemberManager";
-import { BackupSheet } from "@/components/sheets/BackupSheet";
-import { RestoreSheet } from "@/components/sheets/RestoreSheet";
-import { useCategories } from "@/lib/data/hooks/useCategories";
-import { useMembers } from "@/lib/data/hooks/useMembers";
-import { useAccount } from "@/lib/data/contexts/AccountContext";
-import { getDebugLogs, clearDebugLogs } from "@/lib/utils/debug-logger";
+import { useState } from "react"
+import { motion } from "framer-motion"
+import { Bell, Users, ChevronRight, Moon, Palette, Info, Download, Upload, Bug } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { useTheme } from "next-themes"
+import { BackupSheet } from "@/components/sheets/BackupSheet"
+import { RestoreSheet } from "@/components/sheets/RestoreSheet"
+import { ManageCategoriesSheet } from "@/components/sheets/ManageCategoriesSheet"
+import { ManageMembersSheet } from "@/components/sheets/ManageMembersSheet"
+import { useCategories } from "@/lib/data/hooks/useCategories"
+import { useMembers } from "@/lib/data/hooks/useMembers"
+import { useAccount } from "@/lib/data/contexts/AccountContext"
+import { getDebugLogs, clearDebugLogs } from "@/lib/utils/debug-logger"
 
 export function SettingsTab() {
-  const { theme, setTheme } = useTheme();
-  const { account } = useAccount();
-  const { categories, refetch: refetchCats } = useCategories();
-  const { members, refetch: refetchMembers } = useMembers();
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const [showMemberManager, setShowMemberManager] = useState(false);
-  const [showBackupSheet, setShowBackupSheet] = useState(false);
-  const [showRestoreSheet, setShowRestoreSheet] = useState(false);
-  const [showDebugLogs, setShowDebugLogs] = useState(false);
-  const [debugLogs, setDebugLogs] = useState<Array<{ timestamp: string; type: string; message: string }>>([]);
+  const { theme, setTheme } = useTheme()
+  const { account } = useAccount()
+  const { categories, refetch: refetchCats } = useCategories()
+  const { members, refetch: refetchMembers } = useMembers()
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
+  const [showMemberManager, setShowMemberManager] = useState(false)
+  const [showBackupSheet, setShowBackupSheet] = useState(false)
+  const [showRestoreSheet, setShowRestoreSheet] = useState(false)
+  const [showDebugLogs, setShowDebugLogs] = useState(false)
+  const [debugLogs, setDebugLogs] = useState<Array<{ timestamp: string; type: string; message: string }>>([])
 
   const handleShowDebugLogs = () => {
-    const logs = getDebugLogs();
-    setDebugLogs(logs);
-    setShowDebugLogs(true);
-  };
+    const logs = getDebugLogs()
+    setDebugLogs(logs)
+    setShowDebugLogs(true)
+  }
 
   const settingGroups = [
     {
@@ -40,13 +40,13 @@ export function SettingsTab() {
         {
           icon: Users,
           label: "Manage Members",
-          description: "Add or remove members",
+          description: `${members.filter(m => !m.is_kitty).length} members`,
           onClick: () => setShowMemberManager(true),
         },
         {
           icon: Palette,
           label: "Categories",
-          description: "Customize expense categories",
+          description: `${categories.length} categories`,
           onClick: () => setShowCategoryManager(true),
         },
       ],
@@ -115,7 +115,7 @@ export function SettingsTab() {
         },
       ],
     },
-  ];
+  ]
 
   if (!account) {
     return (
@@ -124,7 +124,7 @@ export function SettingsTab() {
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -141,8 +141,8 @@ export function SettingsTab() {
             <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-1">{group.title}</h3>
             <div className="rounded-2xl bg-card border border-border/50 overflow-hidden">
               {group.items.map((item, itemIndex) => {
-                const isToggle = 'toggle' in item && item.toggle;
-                const Wrapper = isToggle ? "div" : "button";
+                const isToggle = 'toggle' in item && item.toggle
+                const Wrapper = isToggle ? "div" : "button"
                 return (
                   <Wrapper
                     key={item.label}
@@ -175,50 +175,28 @@ export function SettingsTab() {
                       !('disabled' in item && item.disabled) && <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
                   </Wrapper>
-                );
+                )
               })}
             </div>
           </motion.div>
         ))}
       </div>
 
-      {/* Category Manager Modal */}
-      {showCategoryManager && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
-          <div className="fixed inset-x-0 bottom-0 top-16 overflow-auto">
-            <div className="container mx-auto p-4">
-              <div className="rounded-2xl bg-card border border-border p-6 max-w-2xl mx-auto">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold">Manage Categories</h2>
-                  <Button variant="ghost" onClick={() => setShowCategoryManager(false)}>
-                    Close
-                  </Button>
-                </div>
-                <CategoryManager categories={categories} onUpdate={refetchCats} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Category Manager Sheet */}
+      <ManageCategoriesSheet
+        isOpen={showCategoryManager}
+        onClose={() => setShowCategoryManager(false)}
+        categories={categories}
+        onUpdate={refetchCats}
+      />
 
-      {/* Member Manager Modal */}
-      {showMemberManager && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
-          <div className="fixed inset-x-0 bottom-0 top-16 overflow-auto">
-            <div className="container mx-auto p-4">
-              <div className="rounded-2xl bg-card border border-border p-6 max-w-2xl mx-auto">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold">Manage Members</h2>
-                  <Button variant="ghost" onClick={() => setShowMemberManager(false)}>
-                    Close
-                  </Button>
-                </div>
-                <MemberManager members={members} onUpdate={refetchMembers} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Member Manager Sheet */}
+      <ManageMembersSheet
+        isOpen={showMemberManager}
+        onClose={() => setShowMemberManager(false)}
+        members={members}
+        onUpdate={refetchMembers}
+      />
 
       {/* Backup Sheet */}
       <BackupSheet
@@ -246,8 +224,8 @@ export function SettingsTab() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    clearDebugLogs();
-                    setDebugLogs([]);
+                    clearDebugLogs()
+                    setDebugLogs([])
                   }}
                 >
                   Clear
@@ -293,5 +271,5 @@ export function SettingsTab() {
         </div>
       )}
     </>
-  );
+  )
 }

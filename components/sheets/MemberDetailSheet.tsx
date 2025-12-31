@@ -1,90 +1,90 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { Member, Transaction } from "@/lib/data/types";
-import { BaseSheet } from "@/components/common/BaseSheet";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils/format";
-import { useMemberStats } from "@/lib/data/hooks/useMemberStats";
-import { useAccount } from "@/lib/data/contexts/AccountContext";
-import { useSQLite } from "@/lib/data/contexts/SQLiteContext";
-import { TransactionRepository } from "@/lib/data/repositories/TransactionRepository";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { parseLocalDate } from "@/lib/utils";
+import { useState, useEffect, useMemo } from "react"
+import { Member, Transaction } from "@/lib/data/types"
+import { AnimatedSheet } from "@/components/common/AnimatedSheet"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { formatCurrency } from "@/lib/utils/format"
+import { useMemberStats } from "@/lib/data/hooks/useMemberStats"
+import { useAccount } from "@/lib/data/contexts/AccountContext"
+import { useSQLite } from "@/lib/data/contexts/SQLiteContext"
+import { TransactionRepository } from "@/lib/data/repositories/TransactionRepository"
+import { toast } from "sonner"
+import { Loader2, TrendingUp, TrendingDown } from "lucide-react"
+import { SheetActions } from "@/components/common/sheet"
+import { TransactionList } from "@/components/widgets/TransactionList"
 
 interface MemberDetailSheetProps {
-    member: Member | null;
-    isOpen: boolean;
-    onClose: () => void;
+    member: Member | null
+    isOpen: boolean
+    onClose: () => void
 }
 
 export function MemberDetailSheet({ member, isOpen, onClose }: MemberDetailSheetProps) {
-    const { account } = useAccount();
-    const { db } = useSQLite();
-    const { contributed, owedByKitty, isLoading: statsLoading } = useMemberStats(member?.id);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [isReimbursing, setIsReimbursing] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const { account, reloadAccount } = useAccount()
+    const { db } = useSQLite()
+    const { contributed, owedByKitty, isLoading: statsLoading } = useMemberStats(member?.id)
+    const [transactions, setTransactions] = useState<Transaction[]>([])
+    const [isReimbursing, setIsReimbursing] = useState(false)
+    const [loading, setLoading] = useState(false)
+
+    // Only show last 5 transactions
+    const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions])
 
     useEffect(() => {
         async function fetchTransactions() {
-            if (!db || !account || !member) return;
+            if (!db || !account || !member) return
 
-            setLoading(true);
+            setLoading(true)
             try {
-                const repo = new TransactionRepository(db);
+                const repo = new TransactionRepository(db)
                 const memberTransactions = await repo.getAllByAccount(account.id, {
                     memberId: member.id
-                });
-                setTransactions(memberTransactions);
+                })
+                setTransactions(memberTransactions)
             } catch (error) {
-                console.error("Failed to fetch member transactions:", error);
+                console.error("Failed to fetch member transactions:", error)
             } finally {
-                setLoading(false);
+                setLoading(false)
             }
         }
 
-        if (isOpen) {
-            fetchTransactions();
+        if (isOpen && member) {
+            fetchTransactions()
         }
-    }, [db, account, member, isOpen]);
+    }, [db, account, member, isOpen])
 
     const handleReimburse = async () => {
-        if (!db || !member || owedByKitty === 0) return;
+        if (!db || !member || owedByKitty === 0) return
 
-        setIsReimbursing(true);
+        setIsReimbursing(true)
         try {
-            const repo = new TransactionRepository(db);
+            const repo = new TransactionRepository(db)
+            const pendingTransactions = await repo.getPendingReimbursementsByMember(member.id)
 
-            // Get all pending reimbursement transactions
-            const pendingTransactions = await repo.getPendingReimbursementsByMember(member.id);
-
-            // Update all to 'reimbursed' status
             await Promise.all(
                 pendingTransactions.map(tx =>
                     repo.updateStatus(tx.id, 'reimbursed')
                 )
-            );
+            )
 
-            toast.success(`Reimbursed ${formatCurrency(owedByKitty, account?.currency || "GBP")} to ${member.name}`);
+            toast.success(`Reimbursed ${formatCurrency(owedByKitty, account?.currency || "GBP")} to ${member.name}`)
 
-            // Refresh transactions
+            // Refresh data
             const updatedTransactions = await repo.getAllByAccount(account!.id, {
                 memberId: member.id
-            });
-            setTransactions(updatedTransactions);
-
+            })
+            setTransactions(updatedTransactions)
+            await reloadAccount()
         } catch (error) {
-            console.error("Failed to reimburse member:", error);
-            toast.error("Failed to process reimbursement");
+            console.error("Failed to reimburse member:", error)
+            toast.error("Failed to process reimbursement")
         } finally {
-            setIsReimbursing(false);
+            setIsReimbursing(false)
         }
-    };
+    }
 
-    if (!member) return null;
+    if (!member) return null
 
     const getInitials = (name: string) => {
         return name
@@ -92,141 +92,99 @@ export function MemberDetailSheet({ member, isOpen, onClose }: MemberDetailSheet
             .map(word => word[0])
             .join("")
             .toUpperCase()
-            .slice(0, 2);
-    };
+            .slice(0, 2)
+    }
 
-    const formatDate = (dateString: string) => {
-        const date = parseLocalDate(dateString);
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        if (date.toDateString() === today.toDateString()) {
-            return "Today";
-        } else if (date.toDateString() === yesterday.toDateString()) {
-            return "Yesterday";
-        } else {
-            return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        }
-    };
+    const currency = account?.currency || "GBP"
 
     return (
-        <BaseSheet
-            isOpen={isOpen}
-            onClose={onClose}
-            title="Member Details"
-            contentClassName="px-1 space-y-6 mt-2 pb-6 overflow-y-auto"
-        >
-                    {/* Member Header */}
-                    <div className="flex flex-col items-center text-center">
-                        <Avatar className="h-20 w-20 mb-3">
-                            <AvatarFallback className="bg-primary/10 text-primary font-semibold text-2xl">
-                                {getInitials(member.name)}
-                            </AvatarFallback>
-                        </Avatar>
-                        <h2 className="text-xl font-semibold">{member.name}</h2>
-                        {member.email && (
-                            <p className="text-sm text-muted-foreground mt-1">{member.email}</p>
-                        )}
+        <AnimatedSheet isOpen={isOpen} onClose={onClose}>
+            {/* Member Header */}
+            <div className="py-6 flex flex-col items-center">
+                <Avatar className="h-20 w-20 mb-3">
+                    <AvatarImage src={member.avatar_url} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold text-2xl">
+                        {getInitials(member.name)}
+                    </AvatarFallback>
+                </Avatar>
+                <h2 className="text-xl font-semibold">{member.name}</h2>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-4">
+                {/* Stats Cards */}
+                {statsLoading ? (
+                    <div className="flex justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-
-                    {/* Stats Cards */}
-                    {statsLoading ? (
-                        <div className="flex justify-center py-4">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="p-4 rounded-xl border bg-card">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                                    Contributed
-                                </p>
-                                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                    {formatCurrency(contributed, account?.currency || "GBP")}
-                                </p>
+                ) : (
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                        {/* Contributed */}
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20 p-4">
+                            <div className="absolute top-3 right-3">
+                                <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                                    <TrendingDown className="h-4 w-4 text-green-600" />
+                                </div>
                             </div>
-
-                            <div className="p-4 rounded-xl border bg-card">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                                    Owed by Kitty
-                                </p>
-                                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                                    {formatCurrency(owedByKitty, account?.currency || "GBP")}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Reimburse Button */}
-                    {owedByKitty > 0 && (
-                        <Button
-                            onClick={handleReimburse}
-                            disabled={isReimbursing}
-                            className="w-full bg-amber-500 hover:bg-amber-600 text-white"
-                        >
-                            {isReimbursing ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Reimbursing...
-                                </>
-                            ) : (
-                                `Reimburse ${formatCurrency(owedByKitty, account?.currency || "GBP")}`
-                            )}
-                        </Button>
-                    )}
-
-                    {/* Payment History */}
-                    <div>
-                        <h3 className="text-sm font-semibold mb-3">Payment History</h3>
-                        {loading ? (
-                            <div className="flex justify-center py-8">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            </div>
-                        ) : transactions.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-8">
-                                No transactions yet
+                            <p className="text-xs text-muted-foreground font-medium mb-1">
+                                Contributed
                             </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {transactions.map((transaction) => (
-                                    <div
-                                        key={transaction.id}
-                                        className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                                    >
-                                        <div className="flex-1">
-                                            <p className="font-medium text-sm">
-                                                {transaction.merchant || transaction.description}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {formatDate(transaction.date)}
-                                            </p>
-                                        </div>
+                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                {formatCurrency(contributed, currency)}
+                            </p>
+                        </div>
 
-                                        <div className="flex items-center gap-2">
-                                            {transaction.status !== 'completed' && (
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${transaction.status === 'pending_reimbursement'
-                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
-                                                        : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                                                    }`}>
-                                                    {transaction.status === 'pending_reimbursement'
-                                                        ? 'Pending'
-                                                        : 'Reimbursed'}
-                                                </span>
-                                            )}
-
-                                            <p className={`font-semibold text-sm ${transaction.type === 'EXPENSE'
-                                                    ? 'text-red-600 dark:text-red-400'
-                                                    : 'text-green-600 dark:text-green-400'
-                                                }`}>
-                                                {transaction.type === 'EXPENSE' ? '-' : '+'}
-                                                {formatCurrency(transaction.amount, account?.currency || "GBP")}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
+                        {/* To Reimburse */}
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20 p-4">
+                            <div className="absolute top-3 right-3">
+                                <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+                                    <TrendingUp className="h-4 w-4 text-amber-600" />
+                                </div>
                             </div>
-                        )}
+                            <p className="text-xs text-muted-foreground font-medium mb-1">
+                                To Reimburse
+                            </p>
+                            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                                {formatCurrency(owedByKitty, currency)}
+                            </p>
+                        </div>
                     </div>
-        </BaseSheet>
-    );
+                )}
+
+                {/* Recent Transactions */}
+                <div className="mb-4">
+                    <h3 className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-3 px-1">
+                        Recent Activity
+                    </h3>
+                    <TransactionList
+                        transactions={recentTransactions}
+                        isLoading={loading}
+                        showSearchBar={false}
+                        showFilters={false}
+                    />
+                </div>
+            </div>
+
+            {/* Actions */}
+            {owedByKitty > 0 ? (
+                <SheetActions
+                    onCancel={onClose}
+                    onSubmit={handleReimburse}
+                    submitLabel={`Reimburse ${formatCurrency(owedByKitty, currency)}`}
+                    canSubmit={!isReimbursing}
+                    isSubmitting={isReimbursing}
+                    submittingLabel="Reimbursing..."
+                />
+            ) : (
+                <div className="px-4 py-4">
+                    <button
+                        onClick={onClose}
+                        className="w-full h-12 rounded-full bg-muted/50 text-foreground font-medium hover:bg-muted active:scale-[0.98] transition-all"
+                    >
+                        Close
+                    </button>
+                </div>
+            )}
+        </AnimatedSheet>
+    )
 }
