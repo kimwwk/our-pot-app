@@ -145,8 +145,9 @@ export const ChangeSetProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // Convert frontend ChangeRequest format to database format
     // Note: currentData and proposedData are objects in memory, JSON strings in DB
+    // Generate fresh IDs at persistence time to avoid conflicts on re-confirmation after rejection
     const dbRequests: DbChangeRequest[] = requests.map(req => ({
-      id: req.id,
+      id: ulid(),
       changeset_id: changesetId,
       operation_type: req.operationType,
       entity_type: req.entityType,
@@ -154,7 +155,7 @@ export const ChangeSetProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       current_data: req.currentData ? JSON.stringify(req.currentData) : undefined,
       proposed_data: req.proposedData ? JSON.stringify(req.proposedData) : undefined,
       execution_order: req.executionOrder,
-      created_at: req.createdAt,
+      created_at: new Date().toISOString(),
     }));
 
     // Persist to database

@@ -1,3 +1,4 @@
+import { ulid } from "ulid";
 import { BaseRepository } from "./BaseRepository";
 import { ChangeSet, ChangeRequest } from "../types";
 
@@ -83,6 +84,10 @@ export class ChangeSetRepository extends BaseRepository {
 
                 switch (req.operation_type) {
                     case 'create':
+                        // Replace temp IDs with real ULIDs before inserting
+                        if (data.id && typeof data.id === 'string' && data.id.startsWith('temp-')) {
+                            data.id = ulid();
+                        }
                         const columns = Object.keys(data).join(', ');
                         const placeholders = Object.keys(data).map(() => '?').join(', ');
                         const values = Object.values(data);

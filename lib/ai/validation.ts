@@ -72,11 +72,11 @@ export function validateCategoryForExpense(type: string, categoryId?: string): v
  * Transaction validation schema (for AI proposals)
  */
 export const TransactionProposalSchema = z.object({
-  type: z.enum(["EXPENSE", "DEPOSIT"]).describe("Transaction type: EXPENSE (money out) or DEPOSIT (money in)"),
+  type: z.enum(["EXPENSE"]).describe("Transaction type: EXPENSE (money out)"),
   amount: z.number().positive().describe("Amount in currency format (e.g., 42.50). Must be positive with max 2 decimals"),
   merchant: z.string().optional().describe("Merchant or vendor name"),
   description: z.string().min(1).describe("Description of the transaction"),
-  categoryId: z.string().optional().describe("Category ID (required for EXPENSE, optional for DEPOSIT)"),
+  categoryId: z.string().describe("Category ID for categorizing the expense"),
   memberId: z.string().optional().describe("ID of member who paid. Defaults to Kitty if not specified"),
   date: z.string().optional().describe("Transaction date (ISO YYYY-MM-DD). Defaults to today"),
 });
