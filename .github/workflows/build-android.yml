@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android AAB
 
 on:
   push:
@@ -48,24 +48,33 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build Android APK
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+
+      - name: Build Android AAB
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew bundleRelease
+        env:
+          KEYSTORE_FILE: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Get version from package.json
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Rename APK
+      - name: Rename AAB
         run: |
-          mv android/app/build/outputs/apk/debug/app-debug.apk \
-             android/app/build/outputs/apk/debug/our-pot-${{ steps.version.outputs.version }}.apk
+          mv android/app/build/outputs/bundle/release/app-release.aab \
+             android/app/build/outputs/bundle/release/our-pot-${{ steps.version.outputs.version }}.aab
 
-      - name: Upload APK artifact
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: our-pot-apk
-          path: android/app/build/outputs/apk/debug/our-pot-${{ steps.version.outputs.version }}.apk
+          name: our-pot-aab
+          path: android/app/build/outputs/bundle/release/our-pot-${{ steps.version.outputs.version }}.aab
 
       - name: Determine release tag
         id: release_tag
@@ -83,7 +92,7 @@ jobs:
         with:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           name: Release ${{ steps.release_tag.outputs.tag }}
-          files: android/app/build/outputs/apk/debug/our-pot-${{ steps.version.outputs.version }}.apk
+          files: android/app/build/outputs/bundle/release/our-pot-${{ steps.version.outputs.version }}.aab
           generate_release_notes: true
           draft: false
           prerelease: false
