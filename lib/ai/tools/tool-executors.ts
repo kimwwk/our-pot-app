@@ -124,31 +124,15 @@ export async function executeCreateTransactionChangeRequest(
   db: any,
   accountId: string,
   params: {
-    entityId?: string;
-    type: "EXPENSE" | "DEPOSIT";
+    type: "EXPENSE";
     amount: number;
     merchant?: string;
     description: string;
-    categoryId?: string;
+    categoryId: string;
     memberId?: string;
     date?: string;
-    action?: "UPSERT" | "DISCARD";
   }
 ): Promise<ExecutorResult> {
-  // DISCARD: Special action (will be handled in transformation layer)
-  if (params.action === "DISCARD") {
-    const entityId = params.entityId;
-    if (!entityId) {
-      return { success: false, error: "entityId is required for DISCARD action" };
-    }
-    return {
-      success: true,
-      enrichedToolInput: { action: "DISCARD", entityId },
-      message: `Removed transaction proposal from changeset`,
-      entityId
-    };
-  }
-
   // BUSINESS LOGIC: Validate
   const validation = validateTransactionProposal({
     type: params.type,
@@ -167,17 +151,18 @@ export async function executeCreateTransactionChangeRequest(
   // BUSINESS LOGIC: Apply defaults
   const memberId = converted.memberId || (await getKittyMemberId(db, accountId));
   const date = converted.date || getTodayDateString();
-  const generatedId = ulid();
+  // Use "temp-" prefix for new proposals so they can be identified for buffer removal
+  // Temp IDs will be replaced with real ULIDs at execution time
+  const entityId = `temp-${ulid()}`;
 
   // BUSINESS LOGIC: Build enriched tool input (database format)
   const enrichedToolInput: Record<string, unknown> = {
-    action: params.action,
-    reasoning: (params as any).reasoning,
     // Database format fields
-    id: params.entityId || generatedId, // ID for database insertion
+    id: entityId,
+    entityId: entityId, // Include for buffer key generation
     account_id: accountId,
     member_id: memberId,
-    category_id: converted.categoryId || null,
+    category_id: converted.categoryId,
     type: converted.type,
     amount: converted.amount, // Already in cents
     merchant: converted.merchant || null,
@@ -188,17 +173,11 @@ export async function executeCreateTransactionChangeRequest(
     deleted_at: null,
   };
 
-  // For upserts (modifying existing proposal), include entityId
-  // For new creates, entityId will be null in ChangeRequest
-  if (params.entityId) {
-    enrichedToolInput.entityId = params.entityId;
-  }
-
   return {
     success: true,
     enrichedToolInput,
-    message: `Added transaction proposal to changeset (will be created after approval)`,
-    entityId: params.entityId || generatedId,
+    message: `Added transaction proposal to changeset. Use entityId "${entityId}" to modify or remove this proposal.`,
+    entityId,
     amount: params.amount,
   };
 }
@@ -214,24 +193,11 @@ export async function executeUpdateTransactionChangeRequest(
     categoryId?: string;
     memberId?: string;
     date?: string;
-    action?: "UPSERT" | "DISCARD";
   }
 ): Promise<ExecutorResult> {
-  // DISCARD: Special action (will be handled in transformation layer)
-  if (params.action === "DISCARD") {
-    return {
-      success: true,
-      enrichedToolInput: { action: "DISCARD", transactionId: params.transactionId },
-      message: `Removed update proposal from changeset`,
-      transactionId: params.transactionId
-    };
-  }
-
   // BUSINESS LOGIC: Build enriched tool input (only changed fields in database format)
   const enrichedToolInput: Record<string, unknown> = {
     transactionId: params.transactionId, // For extractEntityId to find
-    action: params.action,
-    reasoning: (params as any).reasoning,
   };
 
   if (params.amount !== undefined) enrichedToolInput.amount = Math.round(params.amount * 100); // Convert to cents
@@ -255,24 +221,11 @@ export async function executeDeleteTransactionChangeRequest(
   _accountId: string,
   params: {
     transactionId: string;
-    action?: "UPSERT" | "DISCARD";
   }
 ): Promise<ExecutorResult> {
-  // DISCARD: Special action (will be handled in transformation layer)
-  if (params.action === "DISCARD") {
-    return {
-      success: true,
-      enrichedToolInput: { action: "DISCARD", transactionId: params.transactionId },
-      message: `Removed delete proposal from changeset`,
-      transactionId: params.transactionId
-    };
-  }
-
   // BUSINESS LOGIC: Build enriched tool input (for delete, only need ID)
   const enrichedToolInput = {
     transactionId: params.transactionId, // For extractEntityId to find
-    action: params.action,
-    reasoning: (params as any).reasoning,
   };
 
   return {
@@ -287,27 +240,11 @@ export async function executeCreateCategoryChangeRequest(
   _db: any,
   accountId: string,
   params: {
-    entityId?: string;
     name: string;
     icon?: string;
     color?: string;
-    action?: "UPSERT" | "DISCARD";
   }
 ): Promise<ExecutorResult> {
-  // DISCARD: Special action (will be handled in transformation layer)
-  if (params.action === "DISCARD") {
-    const entityId = params.entityId;
-    if (!entityId) {
-      return { success: false, error: "entityId is required for DISCARD action" };
-    }
-    return {
-      success: true,
-      enrichedToolInput: { action: "DISCARD", entityId },
-      message: `Removed category proposal from changeset`,
-      entityId
-    };
-  }
-
   // BUSINESS LOGIC: Validate
   const validation = validateCategoryProposal({
     name: params.name,
@@ -319,15 +256,14 @@ export async function executeCreateCategoryChangeRequest(
   }
   const converted = validation.converted!;
 
-  // BUSINESS LOGIC: Generate ID for database
-  const generatedId = ulid();
+  // BUSINESS LOGIC: Generate temp ID for buffer (will be replaced with real ULID at execution)
+  const entityId = `temp-${ulid()}`;
 
   // BUSINESS LOGIC: Build enriched tool input (database format)
   const enrichedToolInput: Record<string, unknown> = {
-    action: params.action,
-    reasoning: (params as any).reasoning,
     // Database format fields
-    id: params.entityId || generatedId, // ID for database insertion
+    id: entityId,
+    entityId: entityId, // Include for buffer key generation
     account_id: accountId,
     name: converted.name,
     icon: converted.icon || null,
@@ -337,17 +273,11 @@ export async function executeCreateCategoryChangeRequest(
     deleted_at: null,
   };
 
-  // For upserts (modifying existing proposal), include entityId
-  // For new creates, entityId will be null in ChangeRequest
-  if (params.entityId) {
-    enrichedToolInput.entityId = params.entityId;
-  }
-
   return {
     success: true,
     enrichedToolInput,
-    message: `Added category proposal to changeset (will be created after approval)`,
-    entityId: params.entityId || generatedId,
+    message: `Added category proposal to changeset. Use entityId "${entityId}" to modify or remove this proposal.`,
+    entityId,
     name: converted.name
   };
 }

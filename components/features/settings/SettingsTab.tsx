@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { motion } from "framer-motion"
-import { Bell, Users, ChevronRight, Moon, Palette, Info, Download, Upload, Bug } from "lucide-react"
+import { Bell, Users, ChevronRight, Moon, Palette, Download, Upload, Bug } from "lucide-react"
+import Image from "next/image"
+import { getAppInfo, type AppInfo } from "@/lib/utils/app-info"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { useTheme } from "next-themes"
@@ -14,6 +16,7 @@ import { useCategories } from "@/lib/data/hooks/useCategories"
 import { useMembers } from "@/lib/data/hooks/useMembers"
 import { useAccount } from "@/lib/data/contexts/AccountContext"
 import { getDebugLogs, clearDebugLogs } from "@/lib/utils/debug-logger"
+import { toast } from "sonner"
 
 export function SettingsTab() {
   const { theme, setTheme } = useTheme()
@@ -26,6 +29,39 @@ export function SettingsTab() {
   const [showRestoreSheet, setShowRestoreSheet] = useState(false)
   const [showDebugLogs, setShowDebugLogs] = useState(false)
   const [debugLogs, setDebugLogs] = useState<Array<{ timestamp: string; type: string; message: string }>>([])
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
+  const [devModeEnabled, setDevModeEnabled] = useState(false)
+  const [tapCount, setTapCount] = useState(0)
+  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    getAppInfo().then(setAppInfo)
+  }, [])
+
+  const handleAboutTap = () => {
+    if (devModeEnabled) return
+
+    // Clear existing timeout
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current)
+    }
+
+    const newCount = tapCount + 1
+    setTapCount(newCount)
+
+    if (newCount >= 5) {
+      setDevModeEnabled(true)
+      setTapCount(0)
+      toast.success("Developer mode enabled")
+    } else if (newCount >= 3) {
+      toast(`${5 - newCount} taps to enable developer mode`)
+    }
+
+    // Reset tap count after 2 seconds of no tapping
+    tapTimeoutRef.current = setTimeout(() => {
+      setTapCount(0)
+    }, 2000)
+  }
 
   const handleShowDebugLogs = () => {
     const logs = getDebugLogs()
@@ -104,17 +140,6 @@ export function SettingsTab() {
         },
       ],
     },
-    {
-      title: "About",
-      items: [
-        {
-          icon: Info,
-          label: "Version",
-          description: "v0.1.0 • OurPot",
-          disabled: true,
-        },
-      ],
-    },
   ]
 
   if (!account) {
@@ -131,7 +156,9 @@ export function SettingsTab() {
     <>
       <div className="p-4 space-y-6 pb-24">
         {/* Settings groups */}
-        {settingGroups.map((group, groupIndex) => (
+        {settingGroups
+          .filter(group => group.title !== "Developer Tools" || devModeEnabled)
+          .map((group, groupIndex) => (
           <motion.div
             key={group.title}
             initial={{ opacity: 0, y: 20 }}
@@ -180,6 +207,32 @@ export function SettingsTab() {
             </div>
           </motion.div>
         ))}
+
+        {/* About section with app icon and version */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: settingGroups.length * 0.1 }}
+          className="flex flex-col items-center justify-center pt-4 pb-8"
+        >
+          <button
+            onClick={handleAboutTap}
+            className="flex flex-col items-center focus:outline-none active:opacity-70 transition-opacity"
+          >
+            <div className="relative h-20 w-20 mb-3">
+              <Image
+                src="/icon1024.png"
+                alt="OurPot"
+                fill
+                className="rounded-2xl object-contain"
+              />
+            </div>
+            <p className="text-lg font-semibold text-foreground">OurPot</p>
+            <p className="text-sm text-muted-foreground">
+              {appInfo ? `v${appInfo.version}${appInfo.build ? ` (${appInfo.build})` : ''}` : 'Loading...'}
+            </p>
+          </button>
+        </motion.div>
       </div>
 
       {/* Category Manager Sheet */}

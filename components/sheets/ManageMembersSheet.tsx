@@ -141,7 +141,7 @@ export function ManageMembersSheet({
                         className="h-full flex flex-col"
                     >
                         {/* Header */}
-                        <div className="flex items-center gap-3 px-4 py-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                        <div className="flex items-center gap-3 px-4 py-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[env(safe-area-inset-top,0px)]">
                             <button
                                 onClick={onClose}
                                 className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-muted active:scale-95 transition-all"

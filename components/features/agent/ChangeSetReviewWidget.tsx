@@ -22,7 +22,9 @@ interface ParsedChange {
   operation: string;
   entity: string;
   proposedData: any;
+  currentData: any;
   categoryName?: string;
+  currentCategoryName?: string;
 }
 
 export function ChangeSetReviewWidget({ onApprove, onReject, onDiscard, onModifyRequest }: ChangeSetReviewWidgetProps) {
@@ -49,14 +51,18 @@ export function ChangeSetReviewWidget({ onApprove, onReject, onDiscard, onModify
       const parsed = changes.map(change => {
         // Phase 1: proposedData is now an object, not a JSON string
         const proposedData = change.proposedData;
+        const currentData = change.currentData;
         const categoryName = proposedData?.category_id ? categoryMap.get(proposedData.category_id as string) : undefined;
+        const currentCategoryName = currentData?.category_id ? categoryMap.get(currentData.category_id as string) : undefined;
 
         return {
           id: change.id,
           operation: change.operationType,
           entity: change.entityType,
           proposedData,
+          currentData,
           categoryName,
+          currentCategoryName,
         };
       });
 
@@ -171,17 +177,37 @@ export function ChangeSetReviewWidget({ onApprove, onReject, onDiscard, onModify
                     {change.entity === "transaction" && (
                       <>
                         <p className="text-sm font-medium text-foreground mt-0.5">
-                          {change.proposedData?.description || "Transaction"}
+                          {change.proposedData?.description || change.currentData?.description || "Transaction"}
                         </p>
-                        <p className="text-sm text-primary font-medium mt-1">
-                          {change.proposedData?.amount && formatCurrency(change.proposedData.amount as number, account?.currency || "GBP")}
-                          {change.proposedData?.merchant && (
-                            <span className="text-muted-foreground font-normal"> · {change.proposedData.merchant}</span>
-                          )}
-                          {change.categoryName && (
-                            <span className="text-muted-foreground font-normal"> · {change.categoryName}</span>
-                          )}
-                        </p>
+                        {/* Before/After for UPDATE operations */}
+                        {change.operation === "update" && change.currentData ? (
+                          <div className="text-sm mt-1 space-y-0.5">
+                            <p className="text-muted-foreground line-through">
+                              {change.currentData?.amount && formatCurrency(change.currentData.amount as number, account?.currency || "GBP")}
+                              {change.currentData?.merchant && ` · ${change.currentData.merchant}`}
+                              {change.currentCategoryName && ` · ${change.currentCategoryName}`}
+                            </p>
+                            <p className="text-primary font-medium">
+                              {change.proposedData?.amount && formatCurrency(change.proposedData.amount as number, account?.currency || "GBP")}
+                              {change.proposedData?.merchant && (
+                                <span className="text-muted-foreground font-normal"> · {change.proposedData.merchant}</span>
+                              )}
+                              {change.categoryName && (
+                                <span className="text-muted-foreground font-normal"> · {change.categoryName}</span>
+                              )}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-primary font-medium mt-1">
+                            {change.proposedData?.amount && formatCurrency(change.proposedData.amount as number, account?.currency || "GBP")}
+                            {change.proposedData?.merchant && (
+                              <span className="text-muted-foreground font-normal"> · {change.proposedData.merchant}</span>
+                            )}
+                            {change.categoryName && (
+                              <span className="text-muted-foreground font-normal"> · {change.categoryName}</span>
+                            )}
+                          </p>
+                        )}
                       </>
                     )}
 
