@@ -40,7 +40,7 @@ jobs:
       - name: Build Next.js app
         run: npm run build
         env:
-          NEXT_PUBLIC_BACKEND_URL: https://our-pot-backend.our-pot-backend-production.workers.dev
+          NEXT_PUBLIC_BACKEND_URL: https://our-pot-api.our-pot-backend-production.workers.dev
 
       - name: Sync Capacitor
         run: npx cap sync
