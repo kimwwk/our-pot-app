@@ -1,8 +1,8 @@
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 
-// Fallback version from package.json
-const PACKAGE_VERSION = '1.1.0';
+// Version injected from package.json via next.config.ts
+const PACKAGE_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 
 export interface AppInfo {
   version: string;
