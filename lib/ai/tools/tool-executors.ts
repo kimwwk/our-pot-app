@@ -124,7 +124,6 @@ export async function executeCreateTransactionChangeRequest(
   db: any,
   accountId: string,
   params: {
-    entityId?: string;
     type: "EXPENSE";
     amount: number;
     merchant?: string;
@@ -154,7 +153,7 @@ export async function executeCreateTransactionChangeRequest(
   const date = converted.date || getTodayDateString();
   // Use "temp-" prefix for new proposals so they can be identified for buffer removal
   // Temp IDs will be replaced with real ULIDs at execution time
-  const entityId = params.entityId || `temp-${ulid()}`;
+  const entityId = `temp-${ulid()}`;
 
   // BUSINESS LOGIC: Build enriched tool input (database format)
   const enrichedToolInput: Record<string, unknown> = {
@@ -177,7 +176,7 @@ export async function executeCreateTransactionChangeRequest(
   return {
     success: true,
     enrichedToolInput,
-    message: `Added transaction proposal to changeset (will be created after approval). Use entityId "${entityId}" to modify or remove this proposal.`,
+    message: `Added transaction proposal to changeset. Use entityId "${entityId}" to modify or remove this proposal.`,
     entityId,
     amount: params.amount,
   };
@@ -241,7 +240,6 @@ export async function executeCreateCategoryChangeRequest(
   _db: any,
   accountId: string,
   params: {
-    entityId?: string;
     name: string;
     icon?: string;
     color?: string;
@@ -259,7 +257,7 @@ export async function executeCreateCategoryChangeRequest(
   const converted = validation.converted!;
 
   // BUSINESS LOGIC: Generate temp ID for buffer (will be replaced with real ULID at execution)
-  const entityId = params.entityId || `temp-${ulid()}`;
+  const entityId = `temp-${ulid()}`;
 
   // BUSINESS LOGIC: Build enriched tool input (database format)
   const enrichedToolInput: Record<string, unknown> = {
@@ -278,7 +276,7 @@ export async function executeCreateCategoryChangeRequest(
   return {
     success: true,
     enrichedToolInput,
-    message: `Added category proposal to changeset (will be created after approval). Use entityId "${entityId}" to modify or remove this proposal.`,
+    message: `Added category proposal to changeset. Use entityId "${entityId}" to modify or remove this proposal.`,
     entityId,
     name: converted.name
   };
