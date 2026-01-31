@@ -11,7 +11,7 @@ import { useAccount } from "@/lib/data/contexts/AccountContext";
 import { useChangeSet } from "@/lib/data/contexts/ChangeSetContext";
 import { handleToolCall } from "@/lib/ai/transformation";
 import { ChangeSetRepository } from "@/lib/data/repositories/ChangeSetRepository";
-import { buildContextAfterDecision } from "@/lib/ai/prompts";
+import { buildContextAfterDecision, buildErrorContext } from "@/lib/ai/prompts";
 import { AgentInputModal } from "./AgentInputModal";
 import { ChangeSetReviewWidget } from "./ChangeSetReviewWidget";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -155,11 +155,11 @@ export function AgentTab() {
       return;
     }
 
-    try {
-      // Execute changeset atomically
-      const repo = new ChangeSetRepository(currentDb);
-      await repo.applyChangeSet(changeSetContext.currentChangeSetId);
+    // Execute changeset atomically
+    const repo = new ChangeSetRepository(currentDb);
+    const result = await repo.applyChangeSet(changeSetContext.currentChangeSetId);
 
+    if (result.success) {
       // Transition to approved
       changeSetContext.transitionToApproved();
 
@@ -176,17 +176,18 @@ export function AgentTab() {
         });
         pendingConfirmationResolver.current = null;
       }
-    } catch (error) {
-      console.error("Failed to apply changeset:", error);
+    } else {
+      // BUG-012: Use classified error for AI recovery
+      console.error("Failed to apply changeset:", result.error);
 
-      // Transition to execution_failed
-      changeSetContext.transitionToExecutionFailed();
+      // Transition to execution_failed with classified error
+      changeSetContext.transitionToExecutionFailed(result.error);
 
-      // Resume AI stream with error
+      // Resume AI stream with classified error context
       if (pendingConfirmationResolver.current) {
         pendingConfirmationResolver.current({
           success: false,
-          error: error instanceof Error ? error.message : "Execution failed",
+          error: buildErrorContext(result.error),
         });
         pendingConfirmationResolver.current = null;
       }

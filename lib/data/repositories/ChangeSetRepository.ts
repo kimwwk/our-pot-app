@@ -1,6 +1,8 @@
 import { ulid } from "ulid";
 import { BaseRepository } from "./BaseRepository";
 import { ChangeSet, ChangeRequest } from "../types";
+import { classifyError } from "@/lib/ai/errorClassification";
+import type { ExecutionError } from "@/lib/ai/types";
 
 export class ChangeSetRepository extends BaseRepository {
 
@@ -98,19 +100,29 @@ export class ChangeSetRepository extends BaseRepository {
     // Atomic Application of Changeset
     // BUG-011 FIX: Ensures atomicity by setting intermediate 'executing' state
     // before batch execution, preventing orphaned changesets in 'pending_approval'
-    async applyChangeSet(id: string): Promise<void> {
+    // BUG-012 FIX: Returns classified ExecutionError for AI recovery strategies
+    async applyChangeSet(id: string): Promise<{ success: true } | { success: false; error: ExecutionError }> {
         // Step 1: Validate changeset exists and is in correct state
         const changeset = await this.getById(id);
         if (!changeset) {
-            throw new Error(`Changeset ${id} not found`);
+            return {
+                success: false,
+                error: classifyError(new Error(`Changeset ${id} not found`)),
+            };
         }
         if (changeset.status !== 'pending_approval') {
-            throw new Error(`Changeset ${id} is in '${changeset.status}' state, expected 'pending_approval'`);
+            return {
+                success: false,
+                error: classifyError(new Error(`Changeset ${id} is in '${changeset.status}' state, expected 'pending_approval'`)),
+            };
         }
 
         const requests = await this.getRequests(id);
         if (!requests || requests.length === 0) {
-            throw new Error(`No change requests found for changeset ${id}. The changeset may not have been persisted to the database.`);
+            return {
+                success: false,
+                error: classifyError(new Error(`No change requests found for changeset ${id}. The changeset may not have been persisted to the database.`)),
+            };
         }
 
         // Step 2: Transition to 'executing' state BEFORE batch execution
@@ -178,8 +190,17 @@ export class ChangeSetRepository extends BaseRepository {
             // Capacitor SQLite handles transaction management internally
             await this.db.executeSet(statements);
 
+            return { success: true };
+
         } catch (error) {
             console.error(`Failed to apply changeset ${id}`, error);
+
+            // BUG-012: Classify the error for AI recovery
+            // Try to determine which request failed based on error context
+            const classifiedError = classifyError(error, {
+                // Note: SQLite batch doesn't tell us which statement failed
+                // We classify based on error message patterns
+            });
 
             // Step 6: Mark as failed - changeset is already in 'executing' state,
             // so even if this fails, it won't be orphaned in 'pending_approval'
@@ -194,7 +215,7 @@ export class ChangeSetRepository extends BaseRepository {
                 console.error(`Failed to update changeset status to execution_failed:`, updateError);
             }
 
-            throw error;
+            return { success: false, error: classifiedError };
         }
     }
 

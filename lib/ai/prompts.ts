@@ -78,27 +78,38 @@ export function buildContextAfterDecision(decision: {
   }
 }
 
+import { getRecoverySuggestion, isTransientError, isRecoverableError } from './errorClassification';
+import type { ExecutionError } from './types';
+
 /**
  * Build error context message for AI to analyze and fix
+ * BUG-012: Enhanced to use classified ExecutionError with recovery strategies
  */
-export function buildErrorContext(error: {
-  code: string;
-  message: string;
-  failedRequestIndex?: number;
-  entityType?: string;
-  entityId?: string;
-}): string {
+export function buildErrorContext(error: ExecutionError): string {
+  const recoverySuggestion = getRecoverySuggestion(error);
+  const canRetry = isTransientError(error);
+  const canFix = isRecoverableError(error);
+
+  const details = error.details || {};
+  const detailLines: string[] = [];
+  if (details.entityType) detailLines.push(`Entity type: ${details.entityType}`);
+  if (details.entityId) detailLines.push(`Entity ID: ${details.entityId}`);
+  if (details.table) detailLines.push(`Table: ${details.table}`);
+  if (details.column) detailLines.push(`Column: ${details.column}`);
+  if (details.triggerMessage) detailLines.push(`Rule: ${details.triggerMessage}`);
+
   return `Execution failed: ${error.message}
 
+Error type: ${error.type}
 Error code: ${error.code}
-${error.failedRequestIndex !== undefined ? `Failed at operation ${error.failedRequestIndex}` : ""}
-${error.entityType ? `Entity type: ${error.entityType}` : ""}
-${error.entityId ? `Entity ID: ${error.entityId}` : ""}
+${error.failedRequestId ? `Failed request ID: ${error.failedRequestId}` : ""}
+${detailLines.length > 0 ? detailLines.join('\n') : ""}
 
-Please analyze this error and correct the changeset. Common fixes:
-- FOREIGN_KEY_VIOLATION: The referenced entity doesn't exist. Create it first or use a valid ID.
-- UNIQUE_CONSTRAINT: An entity with this name/identifier already exists. Use a different name or update the existing one.
-- DB_LOCKED: Temporary issue, retry the same changeset.
+Recovery strategy: ${recoverySuggestion}
+
+${canRetry ? "This is a TRANSIENT error - you can retry the same changeset without modifications." : ""}
+${canFix ? "This error can be fixed by modifying the changeset. Analyze the issue and correct the specific problem." : ""}
+${!canRetry && !canFix ? "This is a CRITICAL error - ask the user how they would like to proceed." : ""}
 
 After fixing, call confirmChangeSet() again. The user will need to re-approve the corrected version.`;
 }
