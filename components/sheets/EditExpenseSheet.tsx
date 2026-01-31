@@ -79,6 +79,7 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
                     setSelectedCategory(data.category_id || "")
                     setMemberId(data.member_id)
                     setDate(data.date)
+                    setNote(data.note || "")
                 } else {
                     toast.error("Transaction not found")
                     onClose()
@@ -109,6 +110,7 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
                 type: "EXPENSE",
                 amount: Math.abs(cents),
                 description: merchant,
+                note: note || undefined,
                 date: date || transaction.date,
             })
 

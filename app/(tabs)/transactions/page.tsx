@@ -53,6 +53,7 @@ export default function TransactionsPage() {
                 // Store as positive, trigger will handle sign
                 amount: Math.abs(cents),
                 description: data.description,
+                note: data.note,
                 date: data.date,
                 status: status,
                 created_at: new Date().toISOString(),

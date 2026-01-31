@@ -32,6 +32,7 @@ interface AddExpenseSheetProps {
         categoryId: string
         memberId: string
         date: string
+        note?: string
     }) => void
 }
 
@@ -105,7 +106,8 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
                 amount: amountNum,
                 categoryId: selectedCategory,
                 memberId: finalMemberId,
-                date
+                date,
+                note: note || undefined
             })
 
             onClose()
