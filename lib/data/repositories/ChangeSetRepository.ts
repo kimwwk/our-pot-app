@@ -4,6 +4,33 @@ import { ChangeSet, ChangeRequest } from "../types";
 
 export class ChangeSetRepository extends BaseRepository {
 
+    // SECURITY: Whitelist of allowed column names per entity type to prevent SQL injection
+    // Column names from proposed_data JSON are validated against this whitelist
+    private static readonly ALLOWED_COLUMNS: Readonly<Record<string, ReadonlySet<string>>> = {
+        transaction: new Set(['id', 'account_id', 'member_id', 'category_id', 'type', 'amount', 'merchant', 'description', 'note', 'date', 'status', 'created_at', 'updated_at', 'deleted_at']),
+        category: new Set(['id', 'account_id', 'name', 'icon', 'color', 'created_at', 'updated_at', 'deleted_at']),
+        member: new Set(['id', 'account_id', 'name', 'role', 'is_kitty', 'avatar_url', 'email', 'created_at', 'updated_at', 'deleted_at']),
+        account: new Set(['id', 'name', 'emoji', 'currency', 'balance', 'created_at', 'updated_at', 'deleted_at'])
+    };
+
+    // SECURITY: Validates column names against whitelist to prevent SQL injection
+    private validateColumns(entityType: string, columns: string[]): void {
+        const allowed = ChangeSetRepository.ALLOWED_COLUMNS[entityType];
+        if (!allowed) {
+            throw new Error(`Unknown entity type: ${entityType}`);
+        }
+
+        for (const col of columns) {
+            if (!allowed.has(col)) {
+                throw new Error(`Invalid column "${col}" for entity type "${entityType}"`);
+            }
+            // Additional regex check for identifier safety (defense in depth)
+            if (!/^[a-z_][a-z0-9_]*$/i.test(col)) {
+                throw new Error(`Invalid column name format: "${col}"`);
+            }
+        }
+    }
+
     async create(changeset: ChangeSet, requests: ChangeRequest[]): Promise<void> {
         try {
             // Use executeSet for batch operations instead of manual transaction management
@@ -106,8 +133,11 @@ export class ChangeSetRepository extends BaseRepository {
                         if (data.id && typeof data.id === 'string' && data.id.startsWith('temp-')) {
                             data.id = ulid();
                         }
-                        const columns = Object.keys(data).join(', ');
-                        const placeholders = Object.keys(data).map(() => '?').join(', ');
+                        // SECURITY: Validate column names before building SQL
+                        const createColumns = Object.keys(data);
+                        this.validateColumns(req.entity_type, createColumns);
+                        const columns = createColumns.join(', ');
+                        const placeholders = createColumns.map(() => '?').join(', ');
                         const values = Object.values(data);
                         statements.push({
                             statement: `INSERT INTO ${this.getTableName(req.entity_type)} (${columns}) VALUES (${placeholders})`,
@@ -116,8 +146,11 @@ export class ChangeSetRepository extends BaseRepository {
                         break;
 
                     case 'update':
-                        const updateFields = Object.keys(data).filter(k => k !== 'id').map(k => `${k} = ?`).join(', ');
-                        const updateValues = Object.keys(data).filter(k => k !== 'id').map(k => data[k]);
+                        // SECURITY: Validate column names before building SQL
+                        const updateColumns = Object.keys(data).filter(k => k !== 'id');
+                        this.validateColumns(req.entity_type, updateColumns);
+                        const updateFields = updateColumns.map(k => `${k} = ?`).join(', ');
+                        const updateValues = updateColumns.map(k => data[k]);
                         statements.push({
                             statement: `UPDATE ${this.getTableName(req.entity_type)} SET ${updateFields} WHERE id = ?`,
                             values: [...updateValues, req.entity_id]
@@ -125,7 +158,7 @@ export class ChangeSetRepository extends BaseRepository {
                         break;
 
                     case 'delete':
-                        // Soft delete
+                        // Soft delete - no dynamic columns, safe
                         const now = new Date().toISOString();
                         statements.push({
                             statement: `UPDATE ${this.getTableName(req.entity_type)} SET deleted_at = ? WHERE id = ?`,
