@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Trash2, Plus, Edit3, ShoppingCart, Sparkles, ChevronDown, MessageSquare } from "lucide-react";
+import { Check, Trash2, Plus, Edit3, ShoppingCart, Sparkles, ChevronDown, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChangeSet } from "@/lib/data/contexts/ChangeSetContext";
 import { useSQLite } from "@/lib/data/contexts/SQLiteContext";
@@ -279,14 +279,6 @@ export function ChangeSetReviewWidget({ onApprove, onReject, onDiscard, onModify
                 >
                   <Check className="h-4 w-4 mr-2" />
                   Approve
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 h-11 rounded-lg bg-transparent"
-                  onClick={() => onDiscard()}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Reject
                 </Button>
               </div>
 
