@@ -15,6 +15,7 @@ import { buildContextAfterDecision, buildErrorContext } from "@/lib/ai/prompts";
 import { AgentInputModal } from "./AgentInputModal";
 import { ChangeSetReviewWidget } from "./ChangeSetReviewWidget";
 import { EmptyState } from "@/components/common/EmptyState";
+import { AgentStateIndicator, deriveAgentState } from "./AgentStateIndicator";
 
 export function AgentTab() {
   const { db, isInitialized } = useSQLite();
@@ -304,29 +305,12 @@ export function AgentTab() {
         </div>
       </motion.div>
 
-      {/* Processing indicator */}
-      {isProcessing && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-xl bg-muted p-4"
-        >
-          <div className="flex gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, delay: i * 0.2 }}
-                className="w-1.5 h-1.5 rounded-full bg-foreground/50"
-              />
-            ))}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm text-foreground font-medium">Processing your request...</p>
-            <p className="text-xs text-muted-foreground">AI is preparing a changeset</p>
-          </div>
-        </motion.div>
-      )}
+      {/* BL-022: Agent State Display */}
+      <AgentStateIndicator
+        chatStatus={status as "submitted" | "streaming" | "ready" | "error"}
+        changeSetStatus={changeSetContext.status}
+        lastError={changeSetContext.lastError}
+      />
 
       {/* Error display */}
       {error && (
@@ -351,8 +335,12 @@ export function AgentTab() {
         />
       )}
 
-      {/* Empty state when no changeset */}
-      {changeSetContext.status !== "pending_approval" && changeSetContext.status !== "building" && !isProcessing && (
+      {/* Empty state when idle */}
+      {deriveAgentState({
+        chatStatus: status as "submitted" | "streaming" | "ready" | "error",
+        changeSetStatus: changeSetContext.status,
+        lastError: changeSetContext.lastError,
+      }) === "idle" && (
         <EmptyState
           icon={Sparkles}
           title="No pending proposals"
@@ -360,29 +348,6 @@ export function AgentTab() {
         />
       )}
 
-      {/* Building state - AI is revising */}
-      {changeSetContext.status === "building" && !isProcessing && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-xl bg-muted p-4"
-        >
-          <div className="flex gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, delay: i * 0.2 }}
-                className="w-1.5 h-1.5 rounded-full bg-foreground/50"
-              />
-            ))}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm text-foreground font-medium">AI is revising the changes...</p>
-            <p className="text-xs text-muted-foreground">Processing your feedback</p>
-          </div>
-        </motion.div>
-      )}
 
       {/* Input Modal */}
       <AgentInputModal
