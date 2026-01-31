@@ -69,14 +69,32 @@ export class ChangeSetRepository extends BaseRepository {
     }
 
     // Atomic Application of Changeset
+    // BUG-011 FIX: Ensures atomicity by setting intermediate 'executing' state
+    // before batch execution, preventing orphaned changesets in 'pending_approval'
     async applyChangeSet(id: string): Promise<void> {
+        // Step 1: Validate changeset exists and is in correct state
+        const changeset = await this.getById(id);
+        if (!changeset) {
+            throw new Error(`Changeset ${id} not found`);
+        }
+        if (changeset.status !== 'pending_approval') {
+            throw new Error(`Changeset ${id} is in '${changeset.status}' state, expected 'pending_approval'`);
+        }
+
         const requests = await this.getRequests(id);
         if (!requests || requests.length === 0) {
             throw new Error(`No change requests found for changeset ${id}. The changeset may not have been persisted to the database.`);
         }
 
+        // Step 2: Transition to 'executing' state BEFORE batch execution
+        // This prevents orphaned changesets - if batch fails, status is 'executing' not 'pending_approval'
+        await this.executeNonQuery(
+            `UPDATE changesets SET status = 'executing' WHERE id = ?`,
+            [id]
+        );
+
         try {
-            // Build all SQL statements for batch execution
+            // Step 3: Build all SQL statements for batch execution
             const statements: { statement: string; values: any[] }[] = [];
 
             for (const req of requests) {
@@ -117,23 +135,29 @@ export class ChangeSetRepository extends BaseRepository {
                 }
             }
 
-            // Update changeset status to approved
+            // Step 4: Update changeset status to approved (included in batch for atomicity)
             statements.push({
-                statement: `UPDATE changesets SET status = 'approved' WHERE id = ?`,
-                values: [id]
+                statement: `UPDATE changesets SET status = 'approved', reviewed_at = ? WHERE id = ?`,
+                values: [new Date().toISOString(), id]
             });
 
-            // Execute all statements atomically using executeSet
+            // Step 5: Execute all statements atomically using executeSet
             // Capacitor SQLite handles transaction management internally
             await this.db.executeSet(statements);
 
         } catch (error) {
             console.error(`Failed to apply changeset ${id}`, error);
 
-            // Try to mark as failed
+            // Step 6: Mark as failed - changeset is already in 'executing' state,
+            // so even if this fails, it won't be orphaned in 'pending_approval'
             try {
-                await this.executeNonQuery(`UPDATE changesets SET status = 'execution_failed' WHERE id = ?`, [id]);
+                await this.executeNonQuery(
+                    `UPDATE changesets SET status = 'execution_failed', reviewed_at = ? WHERE id = ?`,
+                    [new Date().toISOString(), id]
+                );
             } catch (updateError) {
+                // Changeset remains in 'executing' state - not ideal but recoverable
+                // A cleanup job could find 'executing' changesets older than X minutes
                 console.error(`Failed to update changeset status to execution_failed:`, updateError);
             }
 
