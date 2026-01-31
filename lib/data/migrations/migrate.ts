@@ -2,12 +2,18 @@ import { SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { Capacitor } from '@capacitor/core';
 
 import initialSchema from './001_initial_schema';
+import addNoteToTransactions from './002_add_note_to_transactions';
 
 export const migrations = [
     {
         version: 1,
         description: 'Initial Schema - includes accounts, members, transactions, categories, changesets',
         up: initialSchema
+    },
+    {
+        version: 2,
+        description: 'Add note column to transactions table (BUG-005)',
+        up: addNoteToTransactions
     }
 ];
 
