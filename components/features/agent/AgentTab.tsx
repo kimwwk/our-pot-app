@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, MessageSquare, History } from "lucide-react";
+import { Sparkles, MessageSquare, History, Inbox, TrendingUp, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
@@ -263,6 +263,44 @@ export function AgentTab() {
           <MessageSquare className="h-4 w-4 mr-2.5" />
           Tell AI About an Expense
         </Button>
+      </motion.div>
+
+      {/* Future Features Showcase - BL-018 */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="space-y-2"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+          Coming Soon
+        </p>
+        <div className="space-y-2">
+          <Button
+            className="w-full h-11 rounded-lg text-sm font-medium"
+            variant="outline"
+            disabled
+          >
+            <Inbox className="h-4 w-4 mr-2.5" />
+            Connect Inbox
+          </Button>
+          <Button
+            className="w-full h-11 rounded-lg text-sm font-medium"
+            variant="outline"
+            disabled
+          >
+            <TrendingUp className="h-4 w-4 mr-2.5" />
+            Budget Planner
+          </Button>
+          <Button
+            className="w-full h-11 rounded-lg text-sm font-medium"
+            variant="outline"
+            disabled
+          >
+            <MessageCircle className="h-4 w-4 mr-2.5" />
+            Chat Mode
+          </Button>
+        </div>
       </motion.div>
 
       {/* Processing indicator */}
