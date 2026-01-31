@@ -18,8 +18,8 @@ export class AccountRepository extends BaseRepository {
 
     async create(account: Account): Promise<void> {
         await this.executeNonQuery(
-            `INSERT INTO accounts (id, name, currency, balance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-            [account.id, account.name, account.currency, account.balance, account.created_at, account.updated_at]
+            `INSERT INTO accounts (id, name, emoji, currency, balance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [account.id, account.name, account.emoji, account.currency, account.balance, account.created_at, account.updated_at]
         );
     }
 
