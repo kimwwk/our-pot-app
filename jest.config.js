@@ -1,9 +1,4 @@
 module.exports = {
-  preset: 'ts-jest',
-  // Use different test environments based on file location
-  testEnvironment: 'node',
-  roots: ['<rootDir>/lib', '<rootDir>/components'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx', '**/?(*.)+(spec|test).ts', '**/?(*.)+(spec|test).tsx'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
@@ -24,20 +19,24 @@ module.exports = {
     },
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
-  // Configure test environment based on file path
-  testEnvironmentOptions: {
-    customExportConditions: [''],
-  },
   projects: [
     {
       displayName: 'lib',
       testEnvironment: 'node',
       testMatch: ['<rootDir>/lib/**/__tests__/**/*.test.ts'],
+      preset: 'ts-jest',
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/$1',
+      },
     },
     {
       displayName: 'components',
       testEnvironment: 'jsdom',
       testMatch: ['<rootDir>/components/**/__tests__/**/*.test.tsx'],
+      preset: 'ts-jest',
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/$1',
+      },
     },
   ],
 };

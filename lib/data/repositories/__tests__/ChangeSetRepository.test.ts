@@ -204,10 +204,14 @@ describe('ChangeSetRepository.applyChangeSet', () => {
           values: [mockChangeset],
         } as any);
 
-        // Act & Assert
-        await expect(repository.applyChangeSet(changesetId)).rejects.toThrow(
-          `Changeset ${changesetId} is in '${status}' state, expected 'pending_approval'`
-        );
+        // Act - BUG-012: Now returns { success: false, error } instead of throwing
+        const result = await repository.applyChangeSet(changesetId);
+
+        // Assert
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.message).toContain(`Changeset ${changesetId} is in '${status}' state`);
+        }
 
         // Verify no further operations were attempted
         expect(mockDb.run).not.toHaveBeenCalled();
@@ -217,7 +221,7 @@ describe('ChangeSetRepository.applyChangeSet', () => {
   });
 
   describe('Validation: changeset not found', () => {
-    it('should throw error when changeset does not exist', async () => {
+    it('should return error when changeset does not exist', async () => {
       // Arrange
       const changesetId = 'non-existent-changeset';
 
@@ -226,10 +230,14 @@ describe('ChangeSetRepository.applyChangeSet', () => {
         values: [],
       } as any);
 
-      // Act & Assert
-      await expect(repository.applyChangeSet(changesetId)).rejects.toThrow(
-        `Changeset ${changesetId} not found`
-      );
+      // Act - BUG-012: Now returns { success: false, error } instead of throwing
+      const result = await repository.applyChangeSet(changesetId);
+
+      // Assert
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain(`Changeset ${changesetId} not found`);
+      }
 
       // Verify no further operations were attempted
       expect(mockDb.run).not.toHaveBeenCalled();
@@ -238,7 +246,7 @@ describe('ChangeSetRepository.applyChangeSet', () => {
   });
 
   describe('Validation: no change requests', () => {
-    it('should throw error when changeset has no change requests', async () => {
+    it('should return error when changeset has no change requests', async () => {
       // Arrange
       const changesetId = 'empty-changeset';
       const mockChangeset: ChangeSet = {
@@ -258,17 +266,21 @@ describe('ChangeSetRepository.applyChangeSet', () => {
         values: [],
       } as any);
 
-      // Act & Assert
-      await expect(repository.applyChangeSet(changesetId)).rejects.toThrow(
-        `No change requests found for changeset ${changesetId}. The changeset may not have been persisted to the database.`
-      );
+      // Act - BUG-012: Now returns { success: false, error } instead of throwing
+      const result = await repository.applyChangeSet(changesetId);
+
+      // Assert
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain(`No change requests found for changeset ${changesetId}`);
+      }
 
       // Verify no operations were attempted
       expect(mockDb.run).not.toHaveBeenCalled();
       expect(mockDb.executeSet).not.toHaveBeenCalled();
     });
 
-    it('should throw error when changeset has null change requests', async () => {
+    it('should return error when changeset has null change requests', async () => {
       // Arrange
       const changesetId = 'null-requests-changeset';
       const mockChangeset: ChangeSet = {
@@ -282,10 +294,14 @@ describe('ChangeSetRepository.applyChangeSet', () => {
         .mockResolvedValueOnce({ values: [mockChangeset] } as any)
         .mockResolvedValueOnce({ values: null } as any);
 
-      // Act & Assert
-      await expect(repository.applyChangeSet(changesetId)).rejects.toThrow(
-        `No change requests found for changeset ${changesetId}`
-      );
+      // Act - BUG-012: Now returns { success: false, error } instead of throwing
+      const result = await repository.applyChangeSet(changesetId);
+
+      // Assert
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain(`No change requests found for changeset ${changesetId}`);
+      }
     });
   });
 
@@ -328,10 +344,16 @@ describe('ChangeSetRepository.applyChangeSet', () => {
       mockDb.run
         .mockResolvedValueOnce({ changes: { changes: 1 } } as any);
 
-      // Act & Assert
-      await expect(repository.applyChangeSet(changesetId)).rejects.toThrow(
-        'Foreign key constraint violation'
-      );
+      // Act - BUG-012: Now returns { success: false, error } instead of throwing
+      const result = await repository.applyChangeSet(changesetId);
+
+      // Assert - Should return failure with classified error
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain('Foreign key constraint violation');
+        expect(result.error.type).toBe('CONSTRAINT');
+        expect(result.error.code).toBe('FOREIGN_KEY_VIOLATION');
+      }
 
       // Verify status was updated to 'executing' before batch
       expect(mockDb.run).toHaveBeenNthCalledWith(1,
@@ -383,8 +405,11 @@ describe('ChangeSetRepository.applyChangeSet', () => {
       mockDb.executeSet.mockRejectedValueOnce(new Error('Batch failed'));
       mockDb.run.mockResolvedValueOnce({ changes: { changes: 1 } } as any);
 
-      // Act
-      await expect(repository.applyChangeSet(changesetId)).rejects.toThrow();
+      // Act - BUG-012: Now returns { success: false, error } instead of throwing
+      const result = await repository.applyChangeSet(changesetId);
+
+      // Assert - Should return failure
+      expect(result.success).toBe(false);
 
       // Assert - Verify changeset transitioned through states correctly
       // First update: pending_approval -> executing
@@ -431,11 +456,14 @@ describe('ChangeSetRepository.applyChangeSet', () => {
       const statusUpdateError = new Error('Database connection lost');
       mockDb.run.mockRejectedValueOnce(statusUpdateError);
 
-      // Act & Assert
-      // Should still throw the original batch error
-      await expect(repository.applyChangeSet(changesetId)).rejects.toThrow(
-        'Batch execution failed'
-      );
+      // Act - BUG-012: Now returns { success: false, error } instead of throwing
+      const result = await repository.applyChangeSet(changesetId);
+
+      // Assert - Should return failure with the original batch error
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toBe('Batch execution failed');
+      }
 
       // Verify both updates were attempted
       expect(mockDb.run).toHaveBeenCalledTimes(2);
