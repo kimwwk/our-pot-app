@@ -82,27 +82,41 @@ import { getRecoverySuggestion, isTransientError, isRecoverableError } from './e
 import type { ExecutionError } from './types';
 
 /**
+ * SECURITY: Sanitize error messages to prevent internal schema disclosure
+ * Removes SQL-specific details while preserving actionable information
+ */
+function sanitizeErrorMessage(message: string): string {
+  // Remove table/column names from constraint messages
+  return message
+    .replace(/constraint failed[:\s]*\w+\.\w+/gi, 'constraint failed')
+    .replace(/table[:\s]*["'`]?\w+["'`]?/gi, 'table')
+    .replace(/column[:\s]*["'`]?\w+["'`]?/gi, 'column')
+    .replace(/SQLITE_\w+/g, 'database error');
+}
+
+/**
  * Build error context message for AI to analyze and fix
  * BUG-012: Enhanced to use classified ExecutionError with recovery strategies
+ * SECURITY: Sanitizes messages to prevent internal schema disclosure
  */
 export function buildErrorContext(error: ExecutionError): string {
   const recoverySuggestion = getRecoverySuggestion(error);
   const canRetry = isTransientError(error);
   const canFix = isRecoverableError(error);
 
+  // SECURITY: Sanitize the error message before exposing to AI
+  const sanitizedMessage = sanitizeErrorMessage(error.message);
+
+  // Only include non-sensitive context details
   const details = error.details || {};
   const detailLines: string[] = [];
   if (details.entityType) detailLines.push(`Entity type: ${details.entityType}`);
-  if (details.entityId) detailLines.push(`Entity ID: ${details.entityId}`);
-  if (details.table) detailLines.push(`Table: ${details.table}`);
-  if (details.column) detailLines.push(`Column: ${details.column}`);
-  if (details.triggerMessage) detailLines.push(`Rule: ${details.triggerMessage}`);
+  // Note: entityId and other internal details are intentionally omitted for security
 
-  return `Execution failed: ${error.message}
+  return `Execution failed: ${sanitizedMessage}
 
 Error type: ${error.type}
 Error code: ${error.code}
-${error.failedRequestId ? `Failed request ID: ${error.failedRequestId}` : ""}
 ${detailLines.length > 0 ? detailLines.join('\n') : ""}
 
 Recovery strategy: ${recoverySuggestion}

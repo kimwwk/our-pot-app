@@ -120,12 +120,20 @@ export function classifyError(
         entityId?: string;
     }
 ): ExecutionError {
-    // Extract error message
-    const message = error instanceof Error
-        ? error.message
-        : typeof error === 'string'
-            ? error
-            : String(error);
+    // Extract error message with safe handling for objects
+    let rawMessage: string;
+    if (error instanceof Error) {
+        rawMessage = error.message;
+    } else if (typeof error === 'string') {
+        rawMessage = error;
+    } else if (typeof error === 'object' && error !== null) {
+        rawMessage = 'Unknown database error occurred';
+    } else {
+        rawMessage = String(error);
+    }
+
+    // SECURITY: Limit message length to prevent ReDoS attacks
+    const message = rawMessage.slice(0, 1000);
 
     // Try to match against known patterns
     for (const { pattern, type, code, getDetails } of ERROR_PATTERNS) {

@@ -156,39 +156,54 @@ export function AgentTab() {
       return;
     }
 
-    // Execute changeset atomically
-    const repo = new ChangeSetRepository(currentDb);
-    const result = await repo.applyChangeSet(changeSetContext.currentChangeSetId);
+    try {
+      // Execute changeset atomically
+      const repo = new ChangeSetRepository(currentDb);
+      const result = await repo.applyChangeSet(changeSetContext.currentChangeSetId);
 
-    if (result.success) {
-      // Transition to approved
-      changeSetContext.transitionToApproved();
+      if (result.success) {
+        // Transition to approved
+        changeSetContext.transitionToApproved();
 
-      // Resume AI stream by calling addToolOutput via resolver
-      if (pendingConfirmationResolver.current) {
-        const decision = buildContextAfterDecision({
-          status: "approved",
-          results: { summary: "All changes applied successfully" },
-        });
+        // Resume AI stream by calling addToolOutput via resolver
+        if (pendingConfirmationResolver.current) {
+          const decision = buildContextAfterDecision({
+            status: "approved",
+            results: { summary: "All changes applied successfully" },
+          });
 
-        pendingConfirmationResolver.current({
-          success: true,
-          message: decision,
-        });
-        pendingConfirmationResolver.current = null;
+          pendingConfirmationResolver.current({
+            success: true,
+            message: decision,
+          });
+          pendingConfirmationResolver.current = null;
+        }
+      } else {
+        // BUG-012: Use classified error for AI recovery
+        // Note: Avoid logging full error details in production
+        console.error("Changeset execution failed:", result.error.type, result.error.code);
+
+        // Transition to execution_failed with classified error
+        changeSetContext.transitionToExecutionFailed(result.error);
+
+        // Resume AI stream with classified error context
+        if (pendingConfirmationResolver.current) {
+          pendingConfirmationResolver.current({
+            success: false,
+            error: buildErrorContext(result.error),
+          });
+          pendingConfirmationResolver.current = null;
+        }
       }
-    } else {
-      // BUG-012: Use classified error for AI recovery
-      console.error("Failed to apply changeset:", result.error);
+    } catch (unexpectedError) {
+      // SECURITY: Handle unexpected errors gracefully without exposing details
+      console.error("Unexpected error during changeset approval");
+      changeSetContext.transitionToExecutionFailed();
 
-      // Transition to execution_failed with classified error
-      changeSetContext.transitionToExecutionFailed(result.error);
-
-      // Resume AI stream with classified error context
       if (pendingConfirmationResolver.current) {
         pendingConfirmationResolver.current({
           success: false,
-          error: buildErrorContext(result.error),
+          error: "An unexpected error occurred. Please try again.",
         });
         pendingConfirmationResolver.current = null;
       }

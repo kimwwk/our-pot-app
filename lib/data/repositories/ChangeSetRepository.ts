@@ -139,6 +139,15 @@ export class ChangeSetRepository extends BaseRepository {
             for (const req of requests) {
                 const data = req.proposed_data ? JSON.parse(req.proposed_data) : {};
 
+                // SECURITY: Validate entity type before any SQL construction
+                const validEntityTypes = ['transaction', 'category', 'member', 'account'];
+                if (!validEntityTypes.includes(req.entity_type)) {
+                    return {
+                        success: false,
+                        error: classifyError(new Error(`Invalid entity type: ${req.entity_type}`)),
+                    };
+                }
+
                 switch (req.operation_type) {
                     case 'create':
                         // Replace temp IDs with real ULIDs before inserting
