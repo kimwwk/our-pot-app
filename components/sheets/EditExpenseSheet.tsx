@@ -56,6 +56,7 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
 
     // UI state
     const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
+    const [showValidationErrors, setShowValidationErrors] = useState(false)
 
     const selectedCategoryData = categories.find(c => c.id === selectedCategory)
     const selectedPayerData = members.find(m => m.id === memberId)
@@ -151,6 +152,22 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
 
     const canSubmit = amount && parseFloat(amount) > 0 && selectedCategory
 
+    // Validation errors
+    const categoryError = showValidationErrors && !selectedCategory ? "Please select a category" : undefined
+    const amountError = showValidationErrors && (!amount || parseFloat(amount) <= 0) ? "Please enter an amount" : undefined
+
+    const handleAttemptSubmit = () => {
+        setShowValidationErrors(true)
+    }
+
+    // Clear validation errors when user fixes the issues
+    const handleCategorySelect = (categoryId: string) => {
+        setSelectedCategory(categoryId)
+        if (categoryId) {
+            setShowValidationErrors(false)
+        }
+    }
+
     const getCurrencySymbol = (curr?: string) => {
         const symbols: Record<string, string> = { GBP: "£", USD: "$", EUR: "€" }
         return symbols[curr || "GBP"] || curr || "£"
@@ -191,6 +208,8 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
                                     value={selectedCategoryData?.name}
                                     placeholder="Select category"
                                     onTap={() => setActiveOverlay("category")}
+                                    required
+                                    error={categoryError}
                                 />
                                 <FormDivider />
                                 <FormFieldButton
@@ -258,6 +277,8 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
                             canSubmit={!!canSubmit}
                             isSubmitting={isSaving}
                             submittingLabel="Saving..."
+                            onAttemptSubmit={handleAttemptSubmit}
+                            errorMessage={showValidationErrors && !canSubmit ? (categoryError || amountError) : undefined}
                         />
                     </>
                 )}
@@ -277,7 +298,7 @@ export function EditExpenseSheet({ transactionId, isOpen, onClose, onSuccess }: 
                 onClose={() => setActiveOverlay(null)}
                 categories={categories}
                 selectedCategoryId={selectedCategory}
-                onSelect={setSelectedCategory}
+                onSelect={handleCategorySelect}
             />
 
             <MemberPickerOverlay
