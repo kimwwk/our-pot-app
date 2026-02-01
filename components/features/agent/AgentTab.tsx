@@ -27,8 +27,7 @@ const modes: { id: AgentMode; label: string; icon: string; enabled: boolean }[] 
 
 const trySayingSuggestions = [
   "Coffee and taxi €25 each",
-  "Groceries €45, beer €12",
-  "Split dinner with Alex €60",
+  "Groceries €45, beer €12"
 ];
 
 export function AgentTab() {
@@ -391,12 +390,27 @@ export function AgentTab() {
               <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                className="w-full bg-transparent border-0 p-0 text-base leading-relaxed text-foreground focus:ring-0 resize-none h-32 placeholder-muted-foreground/50 font-medium"
+                className="w-full bg-transparent border-0 p-0 text-base leading-relaxed text-foreground focus:ring-0 resize-none h-24 placeholder-muted-foreground/50 font-medium"
                 placeholder="Paste notes, dictation, or messy lists here..."
                 disabled={isProcessing}
               />
 
-              <div className="flex items-center justify-between mt-2 pt-3 border-t border-border">
+              {/* Quick Examples - inside the card when empty */}
+              {!inputValue && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {trySayingSuggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setInputValue(suggestion)}
+                      className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full text-xs text-primary hover:text-primary transition-colors"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-3 border-t border-border">
                 <button
                   onClick={() => toast.info("Dictation coming soon!")}
                   className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors p-2 -ml-2 rounded-lg hover:bg-muted"
@@ -412,7 +426,7 @@ export function AgentTab() {
                   <span className="material-symbols-outlined text-primary" style={{ fontSize: "18px" }}>
                     auto_awesome
                   </span>
-                  Magic Parse
+                  Parse
                 </button>
               </div>
             </motion.div>
@@ -448,40 +462,19 @@ export function AgentTab() {
         />
       )}
 
-      {/* Empty state with Try Saying suggestions */}
+      {/* Simple empty state hint */}
       {agentState === "idle" && (
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center justify-center py-8 text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center justify-center gap-2 py-4 text-center"
         >
-          <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-            <span className="material-symbols-outlined text-muted-foreground" style={{ fontSize: "32px" }}>
-              auto_awesome
-            </span>
-          </div>
-          <h3 className="text-base font-bold text-foreground mb-1">No pending proposals</h3>
-          <p className="text-sm text-muted-foreground max-w-[260px] mb-6">
-            Enter your expenses above and the AI will parse them for your review
+          <span className="material-symbols-outlined text-muted-foreground/50" style={{ fontSize: "20px" }}>
+            info
+          </span>
+          <p className="text-sm text-muted-foreground/70">
+            Parsed entries will appear here for review
           </p>
-
-          {/* Try Saying Section */}
-          <div className="w-full max-w-sm">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
-              Try saying...
-            </p>
-            <div className="space-y-2">
-              {trySayingSuggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  onClick={() => setInputValue(suggestion)}
-                  className="w-full text-left px-4 py-3 bg-card hover:bg-muted/50 rounded-xl border border-border text-sm text-foreground transition-colors"
-                >
-                  "{suggestion}"
-                </button>
-              ))}
-            </div>
-          </div>
         </motion.div>
       )}
         </>

@@ -144,6 +144,7 @@ export default function TransactionsPage() {
                     transactions={filteredTransactions}
                     isLoading={isLoading}
                     onTransactionClick={(id) => setEditingTransactionId(id)}
+                    onAddClick={() => setShowAddExpense(true)}
                 />
             </div>
 

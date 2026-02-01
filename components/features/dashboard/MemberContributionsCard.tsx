@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemberContributions } from "@/lib/data/hooks/useMemberContributions";
 import { useAccount } from "@/lib/data/contexts/AccountContext";
 import { formatCurrency } from "@/lib/utils/format";
@@ -9,6 +10,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Users } from "lucide-react";
 
 export function MemberContributionsCard() {
+    const router = useRouter();
     const { members, isLoading } = useMemberContributions();
     const { account } = useAccount();
     const currency = account?.currency || "GBP";
@@ -31,6 +33,10 @@ export function MemberContributionsCard() {
                 icon={Users}
                 title="No Members Yet"
                 description="Add household members to start tracking contributions and shared expenses"
+                action={{
+                    label: "Add Members",
+                    onClick: () => router.push("/settings")
+                }}
             />
         );
     }
