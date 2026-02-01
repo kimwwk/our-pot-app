@@ -64,8 +64,8 @@ export class TransactionRepository extends BaseRepository {
 
     async create(transaction: Transaction): Promise<void> {
         await this.executeNonQuery(
-            `INSERT INTO transactions (id, account_id, member_id, category_id, type, amount, merchant, description, date, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [transaction.id, transaction.account_id, transaction.member_id, transaction.category_id, transaction.type, transaction.amount, transaction.merchant, transaction.description, transaction.date, transaction.status, transaction.created_at, transaction.updated_at]
+            `INSERT INTO transactions (id, account_id, member_id, category_id, type, amount, merchant, description, note, date, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [transaction.id, transaction.account_id, transaction.member_id, transaction.category_id, transaction.type, transaction.amount, transaction.merchant, transaction.description, transaction.note, transaction.date, transaction.status, transaction.created_at, transaction.updated_at]
         );
     }
 
@@ -103,9 +103,9 @@ export class TransactionRepository extends BaseRepository {
             `SELECT * FROM transactions
        WHERE account_id = ?
        AND deleted_at IS NULL
-       AND (merchant LIKE ? OR description LIKE ?)
+       AND (merchant LIKE ? OR description LIKE ? OR note LIKE ?)
        ORDER BY date DESC`,
-            [accountId, term, term]
+            [accountId, term, term, term]
         );
     }
 

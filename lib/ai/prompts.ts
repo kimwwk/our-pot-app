@@ -78,27 +78,52 @@ export function buildContextAfterDecision(decision: {
   }
 }
 
+import { getRecoverySuggestion, isTransientError, isRecoverableError } from './errorClassification';
+import type { ExecutionError } from './types';
+
+/**
+ * SECURITY: Sanitize error messages to prevent internal schema disclosure
+ * Removes SQL-specific details while preserving actionable information
+ */
+function sanitizeErrorMessage(message: string): string {
+  // Remove table/column names from constraint messages
+  return message
+    .replace(/constraint failed[:\s]*\w+\.\w+/gi, 'constraint failed')
+    .replace(/table[:\s]*["'`]?\w+["'`]?/gi, 'table')
+    .replace(/column[:\s]*["'`]?\w+["'`]?/gi, 'column')
+    .replace(/SQLITE_\w+/g, 'database error');
+}
+
 /**
  * Build error context message for AI to analyze and fix
+ * BUG-012: Enhanced to use classified ExecutionError with recovery strategies
+ * SECURITY: Sanitizes messages to prevent internal schema disclosure
  */
-export function buildErrorContext(error: {
-  code: string;
-  message: string;
-  failedRequestIndex?: number;
-  entityType?: string;
-  entityId?: string;
-}): string {
-  return `Execution failed: ${error.message}
+export function buildErrorContext(error: ExecutionError): string {
+  const recoverySuggestion = getRecoverySuggestion(error);
+  const canRetry = isTransientError(error);
+  const canFix = isRecoverableError(error);
 
+  // SECURITY: Sanitize the error message before exposing to AI
+  const sanitizedMessage = sanitizeErrorMessage(error.message);
+
+  // Only include non-sensitive context details
+  const details = error.details || {};
+  const detailLines: string[] = [];
+  if (details.entityType) detailLines.push(`Entity type: ${details.entityType}`);
+  // Note: entityId and other internal details are intentionally omitted for security
+
+  return `Execution failed: ${sanitizedMessage}
+
+Error type: ${error.type}
 Error code: ${error.code}
-${error.failedRequestIndex !== undefined ? `Failed at operation ${error.failedRequestIndex}` : ""}
-${error.entityType ? `Entity type: ${error.entityType}` : ""}
-${error.entityId ? `Entity ID: ${error.entityId}` : ""}
+${detailLines.length > 0 ? detailLines.join('\n') : ""}
 
-Please analyze this error and correct the changeset. Common fixes:
-- FOREIGN_KEY_VIOLATION: The referenced entity doesn't exist. Create it first or use a valid ID.
-- UNIQUE_CONSTRAINT: An entity with this name/identifier already exists. Use a different name or update the existing one.
-- DB_LOCKED: Temporary issue, retry the same changeset.
+Recovery strategy: ${recoverySuggestion}
+
+${canRetry ? "This is a TRANSIENT error - you can retry the same changeset without modifications." : ""}
+${canFix ? "This error can be fixed by modifying the changeset. Analyze the issue and correct the specific problem." : ""}
+${!canRetry && !canFix ? "This is a CRITICAL error - ask the user how they would like to proceed." : ""}
 
 After fixing, call confirmChangeSet() again. The user will need to re-approve the corrected version.`;
 }

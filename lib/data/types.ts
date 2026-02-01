@@ -44,6 +44,7 @@ export interface Transaction {
     amount: number; // Always positive integer in cents (e.g., 4250 = £42.50)
     merchant?: string;
     description: string;
+    note?: string; // Optional user note for the transaction
     date: string;
     status: 'completed' | 'pending_reimbursement' | 'reimbursed'; // Reimbursement tracking
     created_at: string;

@@ -55,7 +55,9 @@ export default function HomePage() {
                 type: "EXPENSE",
                 // Store as positive, trigger will handle sign
                 amount: Math.abs(cents),
+                merchant: data.description,
                 description: data.description,
+                note: data.note,
                 date: data.date,
                 status: status,
                 created_at: new Date().toISOString(),

@@ -32,6 +32,7 @@ interface AddExpenseSheetProps {
         categoryId: string
         memberId: string
         date: string
+        note?: string
     }) => void
 }
 
@@ -52,6 +53,7 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
 
     // UI state
     const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
+    const [showValidationErrors, setShowValidationErrors] = useState(false)
 
     const kittyMember = members.find(m => m.is_kitty)
     const selectedCategoryData = categories.find(c => c.id === selectedCategory)
@@ -85,6 +87,7 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
                 setDate(getTodayDateString())
                 setNote("")
                 setActiveOverlay(null)
+                setShowValidationErrors(false)
             }, 300)
             return () => clearTimeout(timer)
         }
@@ -105,7 +108,8 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
                 amount: amountNum,
                 categoryId: selectedCategory,
                 memberId: finalMemberId,
-                date
+                date,
+                note: note || undefined
             })
 
             onClose()
@@ -113,6 +117,22 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
     }
 
     const canSubmit = amount && parseFloat(amount) > 0 && selectedCategory
+
+    // Validation errors
+    const categoryError = showValidationErrors && !selectedCategory ? "Please select a category" : undefined
+    const amountError = showValidationErrors && (!amount || parseFloat(amount) <= 0) ? "Please enter an amount" : undefined
+
+    const handleAttemptSubmit = () => {
+        setShowValidationErrors(true)
+    }
+
+    // Clear validation errors when user fixes the issues
+    const handleCategorySelect = (categoryId: string) => {
+        setSelectedCategory(categoryId)
+        if (categoryId) {
+            setShowValidationErrors(false)
+        }
+    }
 
     const getCurrencySymbol = (curr?: string) => {
         const symbols: Record<string, string> = { GBP: "£", USD: "$", EUR: "€" }
@@ -155,6 +175,8 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
                             value={selectedCategoryData?.name}
                             placeholder="Select category"
                             onTap={() => setActiveOverlay("category")}
+                            required
+                            error={categoryError}
                         />
                         <FormDivider />
                         <FormFieldButton
@@ -205,6 +227,8 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
                     onSubmit={handleSubmit}
                     submitLabel="Save Expense"
                     canSubmit={!!canSubmit}
+                    onAttemptSubmit={handleAttemptSubmit}
+                    errorMessage={showValidationErrors && !canSubmit ? (categoryError || amountError) : undefined}
                 />
             </AnimatedSheet>
 
@@ -222,7 +246,7 @@ export function AddExpenseSheet({ isOpen, onClose, onSubmit }: AddExpenseSheetPr
                 onClose={() => setActiveOverlay(null)}
                 categories={categories}
                 selectedCategoryId={selectedCategory}
-                onSelect={setSelectedCategory}
+                onSelect={handleCategorySelect}
             />
 
             <MemberPickerOverlay

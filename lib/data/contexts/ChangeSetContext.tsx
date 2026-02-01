@@ -5,7 +5,7 @@ import { ulid } from "ulid";
 import type { SQLiteDBConnection } from "@capacitor-community/sqlite";
 import { ChangeSetRepository } from "../repositories/ChangeSetRepository";
 import type { ChangeSet as DbChangeSet, ChangeRequest as DbChangeRequest } from "../types";
-import type { ChangeRequest, ChangeSetStatus, ChangeSetMetadata } from "@/lib/ai/types";
+import type { ChangeRequest, ChangeSetStatus, ChangeSetMetadata, ExecutionError } from "@/lib/ai/types";
 
 // Re-export types for backward compatibility
 export type { ChangeRequest, ChangeSetStatus, ChangeSetMetadata };
@@ -17,6 +17,7 @@ export interface ChangeSetContextData {
   keyedBuffer: Map<string, ChangeRequest>; // Key = entityType:entityId
   metadata: ChangeSetMetadata | null;
   currentChangeSetId: string | null;
+  lastError: ExecutionError | null; // BUG-012: Classified error for AI recovery
 
   // Actions
   addChangeRequest: (key: string, request: Omit<ChangeRequest, "id" | "createdAt" | "executionOrder" | "changesetId">) => void;
@@ -26,7 +27,7 @@ export interface ChangeSetContextData {
   transitionToBuilding: () => void;
   transitionToApproved: () => void;
   transitionToRejected: (reason?: string) => void;
-  transitionToExecutionFailed: () => void;
+  transitionToExecutionFailed: (error?: ExecutionError) => void; // BUG-012: Accept classified error
 
   // Utility
   getBufferAsArray: () => ChangeRequest[];
@@ -38,6 +39,7 @@ const ChangeSetContext = createContext<ChangeSetContextData>({
   keyedBuffer: new Map(),
   metadata: null,
   currentChangeSetId: null,
+  lastError: null,
   addChangeRequest: () => {},
   removeChangeRequest: () => {},
   clearBuffer: () => {},
@@ -57,6 +59,7 @@ export const ChangeSetProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [keyedBuffer, setKeyedBuffer] = useState<Map<string, ChangeRequest>>(new Map());
   const [metadata, setMetadata] = useState<ChangeSetMetadata | null>(null);
   const [currentChangeSetId, setCurrentChangeSetId] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<ExecutionError | null>(null); // BUG-012
   const [nextExecutionOrder, setNextExecutionOrder] = useState<number>(0);
 
   /**
@@ -120,6 +123,7 @@ export const ChangeSetProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setKeyedBuffer(new Map());
     setMetadata(null);
     setCurrentChangeSetId(null);
+    setLastError(null); // BUG-012: Clear error on reset
     setNextExecutionOrder(0); // Reset execution order counter
     setStatus("idle");
   }, []);
@@ -207,9 +211,13 @@ export const ChangeSetProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   /**
    * Transition to execution_failed after atomic rollback
    * Keeps buffer intact for AI to analyze and fix
+   * BUG-012: Accepts classified error for AI recovery strategies
    */
-  const transitionToExecutionFailed = useCallback(() => {
+  const transitionToExecutionFailed = useCallback((error?: ExecutionError) => {
     setStatus("execution_failed");
+    if (error) {
+      setLastError(error);
+    }
     // Transition back to building for AI to fix
     setTimeout(() => {
       setStatus("building");
@@ -230,6 +238,7 @@ export const ChangeSetProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         keyedBuffer,
         metadata,
         currentChangeSetId,
+        lastError,
         addChangeRequest,
         removeChangeRequest,
         clearBuffer,

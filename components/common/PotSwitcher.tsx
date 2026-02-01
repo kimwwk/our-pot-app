@@ -4,18 +4,51 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Check, Plus } from "lucide-react";
 import { useAccount } from "@/lib/data/contexts/AccountContext";
+import { useSQLite } from "@/lib/data/contexts/SQLiteContext";
 import { formatCurrency } from "@/lib/utils/format";
 import { useMembers } from "@/lib/data/hooks/useMembers";
+import { PotSheet } from "@/components/sheets/PotSheet";
+import { createPot } from "@/lib/data/actions/createPot";
+import { toast } from "sonner";
 
 export function PotSwitcher() {
     const { account, accounts, switchAccount } = useAccount();
+    const { db } = useSQLite();
     const { members } = useMembers();
     const [isOpen, setIsOpen] = useState(false);
+    const [showPotSheet, setShowPotSheet] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
 
     if (!account) return null;
 
     const handlePotChange = async (id: string) => {
         await switchAccount(id);
+        setIsOpen(false);
+    };
+
+    const handleCreatePot = async (data: { name: string; emoji: string; currency: string }) => {
+        if (!db) return;
+
+        setIsCreating(true);
+        try {
+            const result = await createPot(db, data);
+
+            // Switch to the new pot
+            await switchAccount(result.accountId);
+
+            setShowPotSheet(false);
+            setIsOpen(false);
+            toast.success(`${data.name} created!`);
+        } catch (error) {
+            console.error('Failed to create pot:', error);
+            toast.error('Failed to create pot');
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleOpenCreateSheet = () => {
+        setShowPotSheet(true);
         setIsOpen(false);
     };
 
@@ -93,11 +126,7 @@ export function PotSwitcher() {
 
                             <div className="border-t border-border p-1.5">
                                 <button
-                                    onClick={() => {
-                                        // TODO: Implement create new pot dialog
-                                        console.log("Create new pot - to be implemented");
-                                        setIsOpen(false);
-                                    }}
+                                    onClick={handleOpenCreateSheet}
                                     className="flex items-center gap-3 w-full rounded-lg p-3 hover:bg-muted transition-colors text-muted-foreground"
                                 >
                                     <div className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-muted-foreground/40">
@@ -110,6 +139,14 @@ export function PotSwitcher() {
                     </>
                 )}
             </AnimatePresence>
+
+            {/* Create Pot Sheet */}
+            <PotSheet
+                isOpen={showPotSheet}
+                onClose={() => setShowPotSheet(false)}
+                onSubmit={handleCreatePot}
+                isSubmitting={isCreating}
+            />
         </div>
     );
 }

@@ -18,6 +18,10 @@ interface SheetActionsProps {
     /** Loading label */
     submittingLabel?: string
     className?: string
+    /** Error message to display above buttons */
+    errorMessage?: string
+    /** Called when user attempts to submit but canSubmit is false */
+    onAttemptSubmit?: () => void
 }
 
 /**
@@ -40,36 +44,53 @@ export function SheetActions({
     canSubmit = true,
     isSubmitting = false,
     submittingLabel = "Saving...",
-    className
+    className,
+    errorMessage,
+    onAttemptSubmit
 }: SheetActionsProps) {
+    const handleClick = () => {
+        if (canSubmit && !isSubmitting) {
+            onSubmit()
+        } else if (onAttemptSubmit) {
+            onAttemptSubmit()
+        }
+    }
+
     return (
-        <div className={cn("px-4 py-4 flex items-center gap-3", className)}>
-            <button
-                onClick={onCancel}
-                className="w-12 h-12 rounded-full flex items-center justify-center bg-muted/50 text-muted-foreground hover:bg-muted active:scale-95 transition-all"
-                type="button"
-            >
-                <X className="w-5 h-5" />
-            </button>
-            <Button
-                onClick={onSubmit}
-                disabled={!canSubmit || isSubmitting}
-                className={cn(
-                    "flex-1 h-12 rounded-full text-[15px] font-semibold transition-all active:scale-[0.98]",
-                    canSubmit && !isSubmitting
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                        : "bg-muted/50 text-muted-foreground/40 hover:bg-muted/50 shadow-none"
-                )}
-            >
-                {isSubmitting ? (
-                    <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        {submittingLabel}
-                    </>
-                ) : (
-                    submitLabel
-                )}
-            </Button>
+        <div className={cn("px-4 py-4", className)}>
+            {errorMessage && (
+                <div className="text-center text-[13px] text-destructive mb-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    {errorMessage}
+                </div>
+            )}
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={onCancel}
+                    className="w-12 h-12 rounded-full flex items-center justify-center bg-muted/50 text-muted-foreground hover:bg-muted active:scale-95 transition-all"
+                    type="button"
+                >
+                    <X className="w-5 h-5" />
+                </button>
+                <Button
+                    onClick={handleClick}
+                    disabled={isSubmitting}
+                    className={cn(
+                        "flex-1 h-12 rounded-full text-[15px] font-semibold transition-all active:scale-[0.98]",
+                        canSubmit && !isSubmitting
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
+                            : "bg-muted/50 text-muted-foreground/40 hover:bg-muted/50 shadow-none"
+                    )}
+                >
+                    {isSubmitting ? (
+                        <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            {submittingLabel}
+                        </>
+                    ) : (
+                        submitLabel
+                    )}
+                </Button>
+            </div>
         </div>
     )
 }

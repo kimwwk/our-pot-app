@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, MessageSquare, History } from "lucide-react";
+import { Sparkles, MessageSquare, History, Inbox, TrendingUp, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
@@ -11,10 +11,11 @@ import { useAccount } from "@/lib/data/contexts/AccountContext";
 import { useChangeSet } from "@/lib/data/contexts/ChangeSetContext";
 import { handleToolCall } from "@/lib/ai/transformation";
 import { ChangeSetRepository } from "@/lib/data/repositories/ChangeSetRepository";
-import { buildContextAfterDecision } from "@/lib/ai/prompts";
+import { buildContextAfterDecision, buildErrorContext } from "@/lib/ai/prompts";
 import { AgentInputModal } from "./AgentInputModal";
 import { ChangeSetReviewWidget } from "./ChangeSetReviewWidget";
 import { EmptyState } from "@/components/common/EmptyState";
+import { AgentStateIndicator, deriveAgentState } from "./AgentStateIndicator";
 
 export function AgentTab() {
   const { db, isInitialized } = useSQLite();
@@ -158,35 +159,51 @@ export function AgentTab() {
     try {
       // Execute changeset atomically
       const repo = new ChangeSetRepository(currentDb);
-      await repo.applyChangeSet(changeSetContext.currentChangeSetId);
+      const result = await repo.applyChangeSet(changeSetContext.currentChangeSetId);
 
-      // Transition to approved
-      changeSetContext.transitionToApproved();
+      if (result.success) {
+        // Transition to approved
+        changeSetContext.transitionToApproved();
 
-      // Resume AI stream by calling addToolOutput via resolver
-      if (pendingConfirmationResolver.current) {
-        const decision = buildContextAfterDecision({
-          status: "approved",
-          results: { summary: "All changes applied successfully" },
-        });
+        // Resume AI stream by calling addToolOutput via resolver
+        if (pendingConfirmationResolver.current) {
+          const decision = buildContextAfterDecision({
+            status: "approved",
+            results: { summary: "All changes applied successfully" },
+          });
 
-        pendingConfirmationResolver.current({
-          success: true,
-          message: decision,
-        });
-        pendingConfirmationResolver.current = null;
+          pendingConfirmationResolver.current({
+            success: true,
+            message: decision,
+          });
+          pendingConfirmationResolver.current = null;
+        }
+      } else {
+        // BUG-012: Use classified error for AI recovery
+        // Note: Avoid logging full error details in production
+        console.error("Changeset execution failed:", result.error.type, result.error.code);
+
+        // Transition to execution_failed with classified error
+        changeSetContext.transitionToExecutionFailed(result.error);
+
+        // Resume AI stream with classified error context
+        if (pendingConfirmationResolver.current) {
+          pendingConfirmationResolver.current({
+            success: false,
+            error: buildErrorContext(result.error),
+          });
+          pendingConfirmationResolver.current = null;
+        }
       }
-    } catch (error) {
-      console.error("Failed to apply changeset:", error);
-
-      // Transition to execution_failed
+    } catch (unexpectedError) {
+      // SECURITY: Handle unexpected errors gracefully without exposing details
+      console.error("Unexpected error during changeset approval");
       changeSetContext.transitionToExecutionFailed();
 
-      // Resume AI stream with error
       if (pendingConfirmationResolver.current) {
         pendingConfirmationResolver.current({
           success: false,
-          error: error instanceof Error ? error.message : "Execution failed",
+          error: "An unexpected error occurred. Please try again.",
         });
         pendingConfirmationResolver.current = null;
       }
@@ -265,29 +282,50 @@ export function AgentTab() {
         </Button>
       </motion.div>
 
-      {/* Processing indicator */}
-      {isProcessing && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-xl bg-muted p-4"
-        >
-          <div className="flex gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, delay: i * 0.2 }}
-                className="w-1.5 h-1.5 rounded-full bg-foreground/50"
-              />
-            ))}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm text-foreground font-medium">Processing your request...</p>
-            <p className="text-xs text-muted-foreground">AI is preparing a changeset</p>
-          </div>
-        </motion.div>
-      )}
+      {/* Future Features Showcase - BL-018 */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="space-y-2"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+          Coming Soon
+        </p>
+        <div className="space-y-2">
+          <Button
+            className="w-full h-11 rounded-lg text-sm font-medium"
+            variant="outline"
+            disabled
+          >
+            <Inbox className="h-4 w-4 mr-2.5" />
+            Connect Inbox
+          </Button>
+          <Button
+            className="w-full h-11 rounded-lg text-sm font-medium"
+            variant="outline"
+            disabled
+          >
+            <TrendingUp className="h-4 w-4 mr-2.5" />
+            Budget Planner
+          </Button>
+          <Button
+            className="w-full h-11 rounded-lg text-sm font-medium"
+            variant="outline"
+            disabled
+          >
+            <MessageCircle className="h-4 w-4 mr-2.5" />
+            Chat Mode
+          </Button>
+        </div>
+      </motion.div>
+
+      {/* BL-022: Agent State Display */}
+      <AgentStateIndicator
+        chatStatus={status as "submitted" | "streaming" | "ready" | "error"}
+        changeSetStatus={changeSetContext.status}
+        lastError={changeSetContext.lastError}
+      />
 
       {/* Error display */}
       {error && (
@@ -312,8 +350,12 @@ export function AgentTab() {
         />
       )}
 
-      {/* Empty state when no changeset */}
-      {changeSetContext.status !== "pending_approval" && changeSetContext.status !== "building" && !isProcessing && (
+      {/* Empty state when idle */}
+      {deriveAgentState({
+        chatStatus: status as "submitted" | "streaming" | "ready" | "error",
+        changeSetStatus: changeSetContext.status,
+        lastError: changeSetContext.lastError,
+      }) === "idle" && (
         <EmptyState
           icon={Sparkles}
           title="No pending proposals"
@@ -321,29 +363,6 @@ export function AgentTab() {
         />
       )}
 
-      {/* Building state - AI is revising */}
-      {changeSetContext.status === "building" && !isProcessing && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-xl bg-muted p-4"
-        >
-          <div className="flex gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, delay: i * 0.2 }}
-                className="w-1.5 h-1.5 rounded-full bg-foreground/50"
-              />
-            ))}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm text-foreground font-medium">AI is revising the changes...</p>
-            <p className="text-xs text-muted-foreground">Processing your feedback</p>
-          </div>
-        </motion.div>
-      )}
 
       {/* Input Modal */}
       <AgentInputModal
