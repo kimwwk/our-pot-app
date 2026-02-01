@@ -15,6 +15,7 @@ interface TransactionListProps {
     transactions: Transaction[];
     isLoading: boolean;
     onTransactionClick?: (id: string) => void;
+    onAddClick?: () => void;
     showSearchBar?: boolean;
     showFilters?: boolean;
 }
@@ -23,6 +24,7 @@ export function TransactionList({
     transactions,
     isLoading,
     onTransactionClick,
+    onAddClick,
     showSearchBar = true,
     showFilters = true
 }: TransactionListProps) {
@@ -78,6 +80,10 @@ export function TransactionList({
                 icon={Receipt}
                 title="No Transactions Yet"
                 description="Start tracking expenses by adding your first transaction"
+                action={onAddClick ? {
+                    label: "Add Expense",
+                    onClick: onAddClick
+                } : undefined}
             />
         );
     }

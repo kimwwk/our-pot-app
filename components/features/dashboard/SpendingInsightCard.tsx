@@ -94,8 +94,8 @@ export function SpendingInsightCard() {
                     <span className="text-[10px] text-muted-foreground">
                         {progressPercent.toFixed(0)}% of funds used
                     </span>
-                    <span className="text-[10px] font-bold text-foreground">
-                        Balance: {isLoading ? "--" : formatCurrency(stats.balance, currency)}
+                    <span className="text-[10px] text-muted-foreground">
+                        {isLoading ? "--" : `${formatCurrency(stats.balance, currency)} remaining`}
                     </span>
                 </div>
             </div>
