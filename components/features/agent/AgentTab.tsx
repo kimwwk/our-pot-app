@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, MessageSquare, History, Inbox, TrendingUp, MessageCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useSQLite } from "@/lib/data/contexts/SQLiteContext";
@@ -12,23 +10,37 @@ import { useChangeSet } from "@/lib/data/contexts/ChangeSetContext";
 import { handleToolCall } from "@/lib/ai/transformation";
 import { ChangeSetRepository } from "@/lib/data/repositories/ChangeSetRepository";
 import { buildContextAfterDecision, buildErrorContext } from "@/lib/ai/prompts";
-import { AgentInputModal } from "./AgentInputModal";
 import { ChangeSetReviewWidget } from "./ChangeSetReviewWidget";
-import { EmptyState } from "@/components/common/EmptyState";
 import { AgentStateIndicator, deriveAgentState } from "./AgentStateIndicator";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+type AgentMode = "direct" | "chat" | "budget" | "insights" | "scan";
+
+const modes: { id: AgentMode; label: string; icon: string; enabled: boolean }[] = [
+  { id: "direct", label: "Direct Entry", icon: "edit_note", enabled: true },
+  { id: "chat", label: "Chat", icon: "forum", enabled: true }, // UI placeholder enabled
+  { id: "budget", label: "Budget", icon: "pie_chart", enabled: false },
+  { id: "insights", label: "Insights", icon: "analytics", enabled: false },
+  { id: "scan", label: "Scan", icon: "document_scanner", enabled: false },
+];
+
+const trySayingSuggestions = [
+  "Coffee and taxi €25 each",
+  "Groceries €45, beer €12",
+  "Split dinner with Alex €60",
+];
 
 export function AgentTab() {
   const { db, isInitialized } = useSQLite();
   const { account } = useAccount();
   const changeSetContext = useChangeSet();
 
-  // Refs to access current values in callbacks (avoid stale closures)
   const dbRef = useRef(db);
   const accountRef = useRef(account);
   const isInitializedRef = useRef(isInitialized);
   const changeSetContextRef = useRef(changeSetContext);
 
-  // Update refs when values change
   useEffect(() => {
     dbRef.current = db;
     accountRef.current = account;
@@ -36,15 +48,13 @@ export function AgentTab() {
     changeSetContextRef.current = changeSetContext;
   }, [db, account, isInitialized, changeSetContext]);
 
-  // Ref to store pending confirmation resolver
   const pendingConfirmationResolver = useRef<((result: any) => void) | null>(null);
 
-  // Local state
-  const [showInput, setShowInput] = useState(false);
+  const [activeMode, setActiveMode] = useState<AgentMode>("direct");
+  const [inputValue, setInputValue] = useState("");
+  const [lastSubmittedInput, setLastSubmittedInput] = useState("");
 
-  // AI Chat hook
   const {
-    messages,
     sendMessage,
     addToolOutput,
     status,
@@ -55,14 +65,10 @@ export function AgentTab() {
     }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     async onToolCall({ toolCall }) {
-      console.log('[useChat] onToolCall triggered:', toolCall.toolName);
-      // Use refs to get current values (avoid stale closures)
       const currentDb = dbRef.current;
       const currentAccount = accountRef.current;
 
-      // Validate required context
       if (!currentDb || !currentAccount) {
-        console.error(`[Tool Call Error] Missing context: db=${!!currentDb}, account=${!!currentAccount}`);
         addToolOutput({
           tool: toolCall.toolName,
           toolCallId: toolCall.toolCallId,
@@ -72,7 +78,6 @@ export function AgentTab() {
         return;
       }
 
-      // Route via central handler
       const result = await handleToolCall(
         toolCall.toolName,
         toolCall.input,
@@ -89,16 +94,13 @@ export function AgentTab() {
         }
       );
 
-      // Handle result based on type
       if (result.type === 'success') {
-        console.log('[useChat] Tool result: SUCCESS', toolCall.toolName);
         addToolOutput({
           tool: toolCall.toolName,
           toolCallId: toolCall.toolCallId,
           output: result.output,
         });
       } else if (result.type === 'error') {
-        console.log('[useChat] Tool result: ERROR', toolCall.toolName, result.errorText);
         addToolOutput({
           tool: toolCall.toolName,
           toolCallId: toolCall.toolCallId,
@@ -106,48 +108,40 @@ export function AgentTab() {
           errorText: result.errorText,
         });
       } else if (result.type === 'pause') {
-        console.log('[useChat] Tool result: PAUSE (confirmChangeSet)', {
-          toolName: toolCall.toolName,
-          toolCallId: toolCall.toolCallId
-        });
-        // PAUSE: confirmChangeSet executed successfully, now waiting for user approval
-        // Store resolver so widget can resume AI stream later
         pendingConfirmationResolver.current = (resultData: any) => {
-          console.log('[useChat] Resolver called with:', resultData);
           addToolOutput({
             tool: toolCall.toolName,
             toolCallId: toolCall.toolCallId,
             output: resultData,
           });
-          console.log('[useChat] addToolOutput called, AI stream should resume');
         };
-        console.log('[useChat] Resolver stored, waiting for user decision');
-        // DO NOT call addToolOutput here - widget will do it
       }
     },
   });
 
-  // Log status and changeset state changes
-  useEffect(() => {
-    console.log('[AgentTab] State changed:', {
-      chatStatus: status,
-      changeSetStatus: changeSetContext.status,
-      bufferSize: changeSetContext.getBufferAsArray().length,
-      hasPendingResolver: !!pendingConfirmationResolver.current,
-      error: error ? String(error) : null
-    });
-  }, [status, changeSetContext.status, changeSetContext, error]);
-
-  // Handle input submission
-  const handleSubmit = (message: string) => {
-    setShowInput(false);
-    sendMessage({
-      role: "user",
-      parts: [{ type: "text", text: message }],
-    });
+  const handleModeChange = (mode: AgentMode) => {
+    const modeConfig = modes.find(m => m.id === mode);
+    if (modeConfig && !modeConfig.enabled) {
+      toast.info(`${modeConfig.label} coming soon!`);
+      return;
+    }
+    setActiveMode(mode);
   };
 
-  // Handle Review Widget Actions
+  const handleSubmit = () => {
+    if (!inputValue.trim()) return;
+    setLastSubmittedInput(inputValue); // Save for "Original Note" display
+    sendMessage({
+      role: "user",
+      parts: [{ type: "text", text: inputValue }],
+    });
+    setInputValue("");
+  };
+
+  const handleClear = () => {
+    setInputValue("");
+  };
+
   const handleApprove = async () => {
     const currentDb = dbRef.current;
     const currentAccount = accountRef.current;
@@ -157,36 +151,23 @@ export function AgentTab() {
     }
 
     try {
-      // Execute changeset atomically
       const repo = new ChangeSetRepository(currentDb);
       const result = await repo.applyChangeSet(changeSetContext.currentChangeSetId);
 
       if (result.success) {
-        // Transition to approved
         changeSetContext.transitionToApproved();
-
-        // Resume AI stream by calling addToolOutput via resolver
         if (pendingConfirmationResolver.current) {
-          const decision = buildContextAfterDecision({
-            status: "approved",
-            results: { summary: "All changes applied successfully" },
-          });
-
           pendingConfirmationResolver.current({
             success: true,
-            message: decision,
+            message: buildContextAfterDecision({
+              status: "approved",
+              results: { summary: "All changes applied successfully" },
+            }),
           });
           pendingConfirmationResolver.current = null;
         }
       } else {
-        // BUG-012: Use classified error for AI recovery
-        // Note: Avoid logging full error details in production
-        console.error("Changeset execution failed:", result.error.type, result.error.code);
-
-        // Transition to execution_failed with classified error
         changeSetContext.transitionToExecutionFailed(result.error);
-
-        // Resume AI stream with classified error context
         if (pendingConfirmationResolver.current) {
           pendingConfirmationResolver.current({
             success: false,
@@ -195,11 +176,8 @@ export function AgentTab() {
           pendingConfirmationResolver.current = null;
         }
       }
-    } catch (unexpectedError) {
-      // SECURITY: Handle unexpected errors gracefully without exposing details
-      console.error("Unexpected error during changeset approval");
+    } catch {
       changeSetContext.transitionToExecutionFailed();
-
       if (pendingConfirmationResolver.current) {
         pendingConfirmationResolver.current({
           success: false,
@@ -211,116 +189,236 @@ export function AgentTab() {
   };
 
   const handleReject = (feedback?: string) => {
-    // Resume AI stream with feedback FIRST, then transition state
     if (pendingConfirmationResolver.current) {
-      const decision = buildContextAfterDecision({
-        status: "rejected_with_feedback",
-        feedback: feedback || "User requested changes",
-      });
-
-      console.log('[AgentTab] Calling resolver with feedback:', decision);
-
       pendingConfirmationResolver.current({
         success: false,
-        feedback: decision,
+        feedback: buildContextAfterDecision({
+          status: "rejected_with_feedback",
+          feedback: feedback || "User requested changes",
+        }),
       });
       pendingConfirmationResolver.current = null;
-
-      // Transition to building state AFTER resuming AI
       changeSetContext.transitionToBuilding();
     } else {
-      console.error('[AgentTab] No pending resolver - cannot resume AI stream');
-      // If no resolver, just transition back to building
       changeSetContext.transitionToBuilding();
     }
   };
 
   const handleDiscard = () => {
-    // Complete rejection - clear buffer
     changeSetContext.transitionToRejected();
-
-    // Resume AI stream by calling addToolOutput via resolver
     if (pendingConfirmationResolver.current) {
-      const decision = buildContextAfterDecision({
-        status: "rejected_completely",
-      });
-
       pendingConfirmationResolver.current({
         success: false,
         rejected: true,
-        message: decision,
+        message: buildContextAfterDecision({ status: "rejected_completely" }),
       });
       pendingConfirmationResolver.current = null;
     }
   };
 
-  // Check if AI is processing
   const isProcessing = status === "submitted" || status === "streaming";
 
-  // Show loading state if not initialized
   if (!isInitialized || !account) {
     return (
-      <div className="space-y-6 pb-24">
-        <div>
-          <p className="text-sm text-muted-foreground mt-0.5">Initializing...</p>
-        </div>
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Initializing...</p>
       </div>
     );
   }
 
+  const agentState = deriveAgentState({
+    chatStatus: status as "submitted" | "streaming" | "ready" | "error",
+    changeSetStatus: changeSetContext.status,
+    lastError: changeSetContext.lastError,
+  });
+
   return (
-    <div className="space-y-6 pb-24">
-      {/* Main action - Ask AI */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <Button
-          className="w-full h-14 rounded-xl text-sm font-medium bg-primary hover:bg-primary/90 text-primary-foreground"
-          onClick={() => setShowInput(true)}
-          disabled={isProcessing || changeSetContext.status === "pending_approval"}
-        >
-          <MessageSquare className="h-4 w-4 mr-2.5" />
-          Tell AI About an Expense
-        </Button>
-      </motion.div>
-
-      {/* Future Features Showcase - BL-018 */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="space-y-2"
-      >
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-          Coming Soon
-        </p>
-        <div className="space-y-2">
-          <Button
-            className="w-full h-11 rounded-lg text-sm font-medium"
-            variant="outline"
-            disabled
-          >
-            <Inbox className="h-4 w-4 mr-2.5" />
-            Connect Inbox
-          </Button>
-          <Button
-            className="w-full h-11 rounded-lg text-sm font-medium"
-            variant="outline"
-            disabled
-          >
-            <TrendingUp className="h-4 w-4 mr-2.5" />
-            Budget Planner
-          </Button>
-          <Button
-            className="w-full h-11 rounded-lg text-sm font-medium"
-            variant="outline"
-            disabled
-          >
-            <MessageCircle className="h-4 w-4 mr-2.5" />
-            Chat Mode
-          </Button>
+    <div className="space-y-5 pt-4">
+      {/* Mode Switcher - added py-1 to prevent ring cutoff */}
+      <div className="overflow-x-auto no-scrollbar -mx-6 px-6 py-1">
+        <div className="flex items-start gap-4 w-max">
+          {modes.map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => handleModeChange(mode.id)}
+              className={cn(
+                "flex flex-col items-center gap-2 group min-w-[64px] transition-all",
+                activeMode === mode.id ? "" : "opacity-60 hover:opacity-100"
+              )}
+            >
+              <div
+                className={cn(
+                  "w-14 h-14 rounded-2xl flex items-center justify-center transition-all",
+                  activeMode === mode.id
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background"
+                    : "bg-card border border-border text-muted-foreground group-hover:bg-muted"
+                )}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "28px" }}>
+                  {mode.icon}
+                </span>
+              </div>
+              <span
+                className={cn(
+                  "text-[11px]",
+                  activeMode === mode.id
+                    ? "font-bold text-foreground"
+                    : "font-medium text-muted-foreground"
+                )}
+              >
+                {mode.label}
+              </span>
+            </button>
+          ))}
         </div>
-      </motion.div>
+      </div>
 
-      {/* BL-022: Agent State Display */}
+      {/* Chat Mode UI Placeholder */}
+      {activeMode === "chat" && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col h-[60vh] bg-card rounded-2xl border border-border overflow-hidden"
+        >
+          {/* Chat Header */}
+          <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-emerald-700 flex items-center justify-center shadow-lg shadow-primary/20">
+              <span className="material-symbols-outlined text-primary-foreground text-sm">smart_toy</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">AI Assistant</p>
+              <p className="text-[10px] text-primary flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                Online
+              </p>
+            </div>
+          </div>
+
+          {/* Chat Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Welcome Message */}
+            <div className="flex items-end gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-emerald-700 flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
+                <span className="material-symbols-outlined text-primary-foreground text-sm">smart_toy</span>
+              </div>
+              <div className="bg-muted/50 rounded-2xl rounded-bl-sm p-4 max-w-[85%]">
+                <p className="text-sm text-foreground">
+                  Hi! I'm ready to help you log expenses. Just tell me what you spent and I'll organize it for you.
+                </p>
+              </div>
+            </div>
+
+            {/* Coming Soon Overlay */}
+            <div className="flex items-center justify-center py-8">
+              <div className="bg-muted/80 backdrop-blur-sm rounded-2xl px-6 py-4 text-center">
+                <span className="material-symbols-outlined text-muted-foreground text-2xl mb-2">chat</span>
+                <p className="text-sm font-bold text-foreground">Chat Mode Coming Soon</p>
+                <p className="text-xs text-muted-foreground mt-1">Full conversational AI for expense tracking</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Chat Input */}
+          <div className="p-3 border-t border-border bg-card">
+            <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2">
+              <input
+                type="text"
+                placeholder="Type a message..."
+                disabled
+                className="flex-1 bg-transparent border-0 text-sm text-foreground placeholder-muted-foreground focus:ring-0 disabled:opacity-50"
+              />
+              <button
+                disabled
+                className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary opacity-50"
+              >
+                <span className="material-symbols-outlined text-sm">send</span>
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Direct Entry Mode */}
+      {activeMode === "direct" && (
+        <>
+          {/* Collapsed Original Note (when pending approval) */}
+          {changeSetContext.status === "pending_approval" && lastSubmittedInput && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 bg-card px-4 py-3 rounded-xl border border-border"
+            >
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-primary text-sm">chat_bubble</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-0.5">Original Note</p>
+                <p className="text-sm text-foreground truncate font-medium">"{lastSubmittedInput}"</p>
+              </div>
+              <button
+                onClick={() => {
+                  setInputValue(lastSubmittedInput);
+                }}
+                className="text-primary text-xs font-bold px-2 py-1 hover:bg-primary/10 rounded transition-colors shrink-0"
+              >
+                Edit
+              </button>
+            </motion.div>
+          )}
+
+          {/* Smart Input Card (expanded when not pending approval) */}
+          {changeSetContext.status !== "pending_approval" && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-card rounded-2xl p-5 shadow-sm border border-border relative group focus-within:ring-2 focus-within:ring-primary/20 transition-all"
+            >
+              <div className="flex justify-between items-center mb-3">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                  Smart Input
+                </label>
+                {inputValue && (
+                  <button
+                    onClick={handleClear}
+                    className="text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors bg-muted px-2 py-1 rounded cursor-pointer"
+                  >
+                    CLEAR
+                  </button>
+                )}
+              </div>
+
+              <textarea
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                className="w-full bg-transparent border-0 p-0 text-base leading-relaxed text-foreground focus:ring-0 resize-none h-32 placeholder-muted-foreground/50 font-medium"
+                placeholder="Paste notes, dictation, or messy lists here..."
+                disabled={isProcessing}
+              />
+
+              <div className="flex items-center justify-between mt-2 pt-3 border-t border-border">
+                <button
+                  onClick={() => toast.info("Dictation coming soon!")}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors p-2 -ml-2 rounded-lg hover:bg-muted"
+                >
+                  <span className="material-symbols-outlined text-lg">mic</span>
+                  Dictate
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!inputValue.trim() || isProcessing}
+                  className="h-10 pl-3 pr-4 rounded-xl bg-foreground text-background text-xs font-bold flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  <span className="material-symbols-outlined text-primary" style={{ fontSize: "18px" }}>
+                    auto_awesome
+                  </span>
+                  Magic Parse
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+      {/* Agent State Indicator */}
       <AgentStateIndicator
         chatStatus={status as "submitted" | "streaming" | "ready" | "error"}
         changeSetStatus={changeSetContext.status}
@@ -340,7 +438,7 @@ export function AgentTab() {
         </motion.div>
       )}
 
-      {/* Current ChangeSet */}
+      {/* ChangeSet Review */}
       {changeSetContext.status === "pending_approval" && !isProcessing && (
         <ChangeSetReviewWidget
           onApprove={handleApprove}
@@ -350,27 +448,44 @@ export function AgentTab() {
         />
       )}
 
-      {/* Empty state when idle */}
-      {deriveAgentState({
-        chatStatus: status as "submitted" | "streaming" | "ready" | "error",
-        changeSetStatus: changeSetContext.status,
-        lastError: changeSetContext.lastError,
-      }) === "idle" && (
-        <EmptyState
-          icon={Sparkles}
-          title="No pending proposals"
-          description="Tell the AI about an expense and it will create a changeset for your review"
-        />
+      {/* Empty state with Try Saying suggestions */}
+      {agentState === "idle" && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center py-8 text-center"
+        >
+          <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <span className="material-symbols-outlined text-muted-foreground" style={{ fontSize: "32px" }}>
+              auto_awesome
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-foreground mb-1">No pending proposals</h3>
+          <p className="text-sm text-muted-foreground max-w-[260px] mb-6">
+            Enter your expenses above and the AI will parse them for your review
+          </p>
+
+          {/* Try Saying Section */}
+          <div className="w-full max-w-sm">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
+              Try saying...
+            </p>
+            <div className="space-y-2">
+              {trySayingSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => setInputValue(suggestion)}
+                  className="w-full text-left px-4 py-3 bg-card hover:bg-muted/50 rounded-xl border border-border text-sm text-foreground transition-colors"
+                >
+                  "{suggestion}"
+                </button>
+              ))}
+            </div>
+          </div>
+        </motion.div>
       )}
-
-
-      {/* Input Modal */}
-      <AgentInputModal
-        isOpen={showInput}
-        onClose={() => setShowInput(false)}
-        onSubmit={handleSubmit}
-        isProcessing={isProcessing}
-      />
+        </>
+      )}
     </div>
   );
 }

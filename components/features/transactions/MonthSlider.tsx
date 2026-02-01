@@ -79,11 +79,11 @@ export function MonthSlider({ selectedMonth, onMonthChange }: MonthSliderProps) 
   }, [selectedMonth, months]);
 
   return (
-    <div className="relative">
+    <div className="relative pt-4 pb-2">
       <div className="flex items-center gap-2">
         <button
           onClick={handlePrevMonth}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted hover:bg-accent transition-colors shrink-0"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-card hover:bg-muted transition-colors shrink-0 text-muted-foreground hover:text-foreground"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -91,8 +91,7 @@ export function MonthSlider({ selectedMonth, onMonthChange }: MonthSliderProps) 
 
         <div
           ref={scrollContainerRef}
-          className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth flex-1"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth flex-1"
         >
           {months.map((month) => {
             const isSelected = isSameMonth(month, selectedMonth);
@@ -102,22 +101,38 @@ export function MonthSlider({ selectedMonth, onMonthChange }: MonthSliderProps) 
               <button
                 key={month.toISOString()}
                 onClick={() => onMonthChange(month)}
-                className={cn(
-                  "flex flex-col items-center justify-center px-4 py-2 rounded-lg transition-all shrink-0 min-w-[70px]",
-                  isSelected
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "bg-muted hover:bg-accent text-muted-foreground hover:text-foreground"
-                )}
+                className="flex flex-col items-center gap-1 shrink-0 group"
               >
-                <span className="text-xs font-medium">
+                <span
+                  className={cn(
+                    "text-sm font-medium transition-colors",
+                    isSelected
+                      ? "text-foreground font-bold"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  )}
+                >
                   {formatMonth(month)}
                 </span>
-                <span className="text-[10px] opacity-70">
+                <span
+                  className={cn(
+                    "text-[10px] transition-colors",
+                    isSelected
+                      ? "text-muted-foreground"
+                      : "text-muted-foreground/60"
+                  )}
+                >
                   {formatYear(month)}
                 </span>
-                {isCurrent && !isSelected && (
-                  <div className="mt-0.5 h-1 w-1 rounded-full bg-primary" />
-                )}
+                <div
+                  className={cn(
+                    "h-1 rounded-full transition-all",
+                    isSelected
+                      ? "w-6 bg-primary shadow-[0_0_10px_rgba(19,236,91,0.5)]"
+                      : isCurrent
+                      ? "w-1.5 bg-muted-foreground/30"
+                      : "w-1 bg-transparent group-hover:bg-muted-foreground/20"
+                  )}
+                />
               </button>
             );
           })}
@@ -125,7 +140,7 @@ export function MonthSlider({ selectedMonth, onMonthChange }: MonthSliderProps) 
 
         <button
           onClick={handleNextMonth}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted hover:bg-accent transition-colors shrink-0"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-card hover:bg-muted transition-colors shrink-0 text-muted-foreground hover:text-foreground"
           aria-label="Next month"
         >
           <ChevronRight className="h-4 w-4" />
