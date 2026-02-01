@@ -69,6 +69,11 @@ export function TransactionItem({ transaction, category, member, currency = "GBP
                         <span>•</span>
                         <span>{formatDate(transaction.date)}</span>
                     </div>
+                    {transaction.note && (
+                        <span className="text-xs text-muted-foreground/60 mt-0.5 line-clamp-1">
+                            {transaction.note}
+                        </span>
+                    )}
                 </div>
             </div>
 

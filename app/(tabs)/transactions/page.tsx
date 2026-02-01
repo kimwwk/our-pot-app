@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { TransactionList } from "@/components/features/transactions/TransactionList";
 import { MonthSlider } from "@/components/features/transactions/MonthSlider";
+import { TransactionSearchBar } from "@/components/features/transactions/TransactionSearchBar";
 import { useTransactions } from "@/lib/data/hooks/useTransactions";
 import { AddExpenseSheet } from "@/components/sheets/AddExpenseSheet";
 import { AddContributeSheet } from "@/components/sheets/AddContributeSheet";
@@ -19,6 +20,7 @@ import { parseLocalDate } from "@/lib/utils";
 export default function TransactionsPage() {
     const { transactions, isLoading, refetch } = useTransactions({ limit: 200 });
     const [selectedMonth, setSelectedMonth] = useState(new Date());
+    const [searchTerm, setSearchTerm] = useState("");
     const { db } = useSQLite();
     const { account, reloadAccount } = useAccount();
 
@@ -75,19 +77,37 @@ export default function TransactionsPage() {
         refetch();
     };
 
-    // Filter transactions by selected month
+    // Filter transactions by selected month and search term
     const filteredTransactions = useMemo(() => {
         return transactions.filter(t => {
             const transactionDate = parseLocalDate(t.date);
-            return (
+            const matchesMonth = (
                 transactionDate.getFullYear() === selectedMonth.getFullYear() &&
                 transactionDate.getMonth() === selectedMonth.getMonth()
             );
+
+            // If no search term, just filter by month
+            if (!searchTerm.trim()) return matchesMonth;
+
+            // Search in merchant, description, and note
+            const searchLower = searchTerm.toLowerCase();
+            const matchesSearch = (
+                (t.merchant?.toLowerCase().includes(searchLower)) ||
+                (t.description?.toLowerCase().includes(searchLower)) ||
+                (t.note?.toLowerCase().includes(searchLower))
+            );
+
+            return matchesMonth && matchesSearch;
         });
-    }, [transactions, selectedMonth]);
+    }, [transactions, selectedMonth, searchTerm]);
 
     return (
         <div className="container mx-auto p-4 space-y-6 pb-24">
+            <TransactionSearchBar
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+            />
+
             <MonthSlider
                 selectedMonth={selectedMonth}
                 onMonthChange={setSelectedMonth}
