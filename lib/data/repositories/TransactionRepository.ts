@@ -154,4 +154,55 @@ export class TransactionRepository extends BaseRepository {
         );
         return result?.total || 0;
     }
+
+    // TODO: Optimize this method - currently fetches all transactions to calculate stats
+    // Consider adding indexes or caching for better performance at scale
+    async getPotLevelStats(accountId: string): Promise<{
+        totalSpent: number;
+        totalFunded: number;
+        firstTransactionDate: string | null;
+        lastTransactionDate: string | null;
+    }> {
+        const totals = await this.executeSingle<{ spent: number | null; funded: number | null }>(
+            `SELECT
+                COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) as spent,
+                COALESCE(SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE 0 END), 0) as funded
+             FROM transactions
+             WHERE account_id = ?
+             AND deleted_at IS NULL`,
+            [accountId]
+        );
+
+        const dateRange = await this.executeSingle<{ min_date: string | null; max_date: string | null }>(
+            `SELECT MIN(date) as min_date, MAX(date) as max_date
+             FROM transactions
+             WHERE account_id = ?
+             AND deleted_at IS NULL`,
+            [accountId]
+        );
+
+        return {
+            totalSpent: totals?.spent || 0,
+            totalFunded: totals?.funded || 0,
+            firstTransactionDate: dateRange?.min_date || null,
+            lastTransactionDate: dateRange?.max_date || null,
+        };
+    }
+
+    async getMemberContributions(accountId: string): Promise<Array<{
+        memberId: string;
+        totalContributed: number;
+    }>> {
+        return this.executeQuery<{ memberId: string; totalContributed: number }>(
+            `SELECT
+                member_id as memberId,
+                COALESCE(SUM(amount), 0) as totalContributed
+             FROM transactions
+             WHERE account_id = ?
+             AND type = 'DEPOSIT'
+             AND deleted_at IS NULL
+             GROUP BY member_id`,
+            [accountId]
+        );
+    }
 }

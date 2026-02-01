@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Check, Plus } from "lucide-react";
 import { useAccount } from "@/lib/data/contexts/AccountContext";
 import { useSQLite } from "@/lib/data/contexts/SQLiteContext";
 import { formatCurrency } from "@/lib/utils/format";
@@ -56,18 +55,29 @@ export function PotSwitcher() {
         <div className="relative">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2.5 rounded-xl bg-secondary/80 px-3.5 py-2.5 hover:bg-secondary transition-colors"
+                className="flex items-center gap-3 rounded-full bg-card pl-2 pr-4 py-1.5 ring-1 ring-border active:scale-95 transition-all hover:ring-primary/30 group"
             >
-                <span className="text-base">{account.emoji}</span>
-                <span className="font-medium text-foreground text-sm max-w-[140px] truncate">
-                    {account.name}
-                </span>
-                <motion.div
-                    animate={{ rotate: isOpen ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                >
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </motion.div>
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                    <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+                        savings
+                    </span>
+                </div>
+                <div className="flex flex-col items-start">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider leading-none mb-0.5">
+                        Current Pot
+                    </span>
+                    <div className="flex items-center gap-1">
+                        <span className="text-sm font-bold text-foreground">{account.name}</span>
+                        <motion.span
+                            animate={{ rotate: isOpen ? 180 : 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="material-symbols-outlined text-muted-foreground"
+                            style={{ fontSize: "18px" }}
+                        >
+                            keyboard_arrow_down
+                        </motion.span>
+                    </div>
+                </div>
             </button>
 
             <AnimatePresence>
@@ -88,51 +98,59 @@ export function PotSwitcher() {
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: -8, scale: 0.96 }}
                             transition={{ duration: 0.15, ease: "easeOut" }}
-                            className="absolute top-full left-0 mt-2 w-72 rounded-xl bg-card border border-border shadow-lg shadow-foreground/5 z-50 overflow-hidden"
+                            className="absolute top-full left-0 mt-2 w-72 rounded-2xl bg-card border border-border shadow-xl z-50 overflow-hidden"
                         >
-                            <div className="p-1.5">
-                                <p className="text-[11px] font-medium text-muted-foreground px-3 py-2 uppercase tracking-wider">
+                            <div className="p-2">
+                                <p className="text-[10px] font-bold text-muted-foreground px-3 py-2 uppercase tracking-wider">
                                     Switch Pot
                                 </p>
 
                                 {accounts.map((pot) => {
-                                    // Count members for this pot (would need to filter by account_id)
                                     const memberCount = members.filter(m => m.account_id === pot.id).length;
+                                    const isActive = pot.id === account.id;
 
                                     return (
                                         <button
                                             key={pot.id}
                                             onClick={() => handlePotChange(pot.id)}
-                                            className={`flex items-center gap-3 w-full rounded-lg p-3 transition-colors ${
-                                                pot.id === account.id
-                                                    ? "bg-accent text-foreground"
+                                            className={`flex items-center gap-3 w-full rounded-xl p-3 transition-all ${
+                                                isActive
+                                                    ? "bg-primary/10 ring-1 ring-primary/20"
                                                     : "hover:bg-muted"
                                             }`}
                                         >
-                                            <span className="text-lg">{pot.emoji}</span>
+                                            <div className={`h-10 w-10 rounded-full flex items-center justify-center text-lg ${
+                                                isActive ? "bg-primary text-primary-foreground" : "bg-muted"
+                                            }`}>
+                                                {pot.emoji}
+                                            </div>
                                             <div className="flex-1 text-left">
-                                                <p className="font-medium text-sm">{pot.name}</p>
+                                                <p className="font-bold text-sm text-foreground">{pot.name}</p>
                                                 <p className="text-xs text-muted-foreground">
                                                     {formatCurrency(pot.balance, pot.currency)} · {memberCount} members
                                                 </p>
                                             </div>
-                                            {pot.id === account.id && (
-                                                <Check className="h-4 w-4 text-primary" />
+                                            {isActive && (
+                                                <span className="material-symbols-outlined text-primary" style={{ fontSize: "20px" }}>
+                                                    check_circle
+                                                </span>
                                             )}
                                         </button>
                                     );
                                 })}
                             </div>
 
-                            <div className="border-t border-border p-1.5">
+                            <div className="border-t border-border p-2">
                                 <button
                                     onClick={handleOpenCreateSheet}
-                                    className="flex items-center gap-3 w-full rounded-lg p-3 hover:bg-muted transition-colors text-muted-foreground"
+                                    className="flex items-center gap-3 w-full rounded-xl p-3 hover:bg-muted transition-colors text-muted-foreground group"
                                 >
-                                    <div className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-muted-foreground/40">
-                                        <Plus className="h-3.5 w-3.5" />
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/30 group-hover:border-primary/50 transition-colors">
+                                        <span className="material-symbols-outlined text-muted-foreground group-hover:text-primary" style={{ fontSize: "20px" }}>
+                                            add
+                                        </span>
                                     </div>
-                                    <span className="text-sm font-medium">Create New Pot</span>
+                                    <span className="text-sm font-bold group-hover:text-foreground transition-colors">Create New Pot</span>
                                 </button>
                             </div>
                         </motion.div>

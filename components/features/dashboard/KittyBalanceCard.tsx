@@ -6,7 +6,6 @@ import { useAccount } from "@/lib/data/contexts/AccountContext";
 import { useSQLite } from "@/lib/data/contexts/SQLiteContext";
 import { TransactionRepository } from "@/lib/data/repositories/TransactionRepository";
 import { cn } from "@/lib/utils";
-import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 
 interface KittyBalanceCardProps {
     className?: string;
@@ -44,51 +43,32 @@ export function KittyBalanceCard({ className }: KittyBalanceCardProps) {
 
     if (isLoading || !account) {
         return (
-            <div className={cn("w-full rounded-2xl bg-gradient-to-br from-primary to-primary/85 p-6 animate-pulse", className)}>
-                <div className="h-8 w-32 rounded bg-primary-foreground/20 mb-4" />
-                <div className="h-12 w-40 rounded bg-primary-foreground/20" />
+            <div className={cn("relative flex flex-col items-center justify-center pt-8 pb-8", className)}>
+                <div className="h-16 w-48 rounded bg-muted animate-pulse" />
             </div>
         );
     }
 
-    return (
-        <div className={cn(
-            "w-full rounded-2xl bg-gradient-to-br from-primary to-primary/85 p-6 text-primary-foreground shadow-lg",
-            className
-        )}>
-            {/* Emoji */}
-            <div className="text-4xl mb-2">{account.emoji}</div>
+    // Format balance for display - split into main and decimal parts
+    const formattedBalance = formatCurrency(account.balance, account.currency);
+    const [mainPart, decimalPart] = formattedBalance.split('.');
 
-            {/* Account Name */}
-            <p className="text-sm opacity-80 mb-1">{account.name}</p>
+    return (
+        <div className={cn("relative flex flex-col items-center justify-center pt-8 pb-8", className)}>
+            {/* Glow effect */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-primary/5 blur-[80px] rounded-full pointer-events-none" />
 
             {/* Balance */}
-            <div className="text-4xl font-bold mb-4">
-                {formatCurrency(account.balance, account.currency)}
-            </div>
+            <h1 className="relative z-10 text-[60px] font-extrabold tracking-tight text-foreground leading-none">
+                {mainPart}
+                {decimalPart && <span className="text-3xl text-muted-foreground font-bold">.{decimalPart}</span>}
+            </h1>
 
-            {/* Stats */}
-            <div className="flex items-center gap-6 text-sm opacity-90">
-                <div className="flex items-center gap-1.5">
-                    <div className="h-6 w-6 rounded-full bg-primary-foreground/20 flex items-center justify-center">
-                        <ArrowUpRight className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                        <p className="text-[10px] opacity-75 uppercase tracking-wide">Contributed</p>
-                        <p className="font-semibold">{formatCurrency(stats.contributed, account.currency)}</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                    <div className="h-6 w-6 rounded-full bg-primary-foreground/20 flex items-center justify-center">
-                        <ArrowDownLeft className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                        <p className="text-[10px] opacity-75 uppercase tracking-wide">Spent</p>
-                        <p className="font-semibold">{formatCurrency(stats.spent, account.currency)}</p>
-                    </div>
-                </div>
-            </div>
+            {/* Label */}
+            <p className="text-muted-foreground text-sm font-medium mt-2 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                Total Balance
+            </p>
         </div>
     );
 }

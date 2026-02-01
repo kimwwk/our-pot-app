@@ -15,6 +15,7 @@ import { MemberRepository } from "@/lib/data/repositories/MemberRepository";
 import { generateId } from "@/lib/utils/ulid";
 import { toast } from "sonner";
 import { parseLocalDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils/format";
 
 export default function TransactionsPage() {
     const { transactions, isLoading, refetch } = useTransactions({ limit: 200 });
@@ -26,7 +27,6 @@ export default function TransactionsPage() {
     const [showContribute, setShowContribute] = useState(false);
     const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
 
-    // Find the transaction type for editing
     const editingTransaction = useMemo(() => {
         if (!editingTransactionId) return null;
         return transactions.find(t => t.id === editingTransactionId);
@@ -40,7 +40,6 @@ export default function TransactionsPage() {
             const memberRepo = new MemberRepository(db);
             const cents = Math.round(data.amount * 100);
 
-            // Check if member is kitty to determine status
             const member = await memberRepo.getById(data.memberId);
             const status = member?.is_kitty ? 'completed' : 'pending_reimbursement';
 
@@ -50,7 +49,6 @@ export default function TransactionsPage() {
                 member_id: data.memberId,
                 category_id: data.categoryId,
                 type: "EXPENSE",
-                // Store as positive, trigger will handle sign
                 amount: Math.abs(cents),
                 merchant: data.description,
                 description: data.description,
@@ -86,19 +84,70 @@ export default function TransactionsPage() {
         });
     }, [transactions, selectedMonth]);
 
+    // Calculate month stats
+    const monthStats = useMemo(() => {
+        let spent = 0;
+        let funded = 0;
+
+        filteredTransactions.forEach(t => {
+            if (t.type === 'EXPENSE') {
+                spent += Math.abs(t.amount);
+            } else if (t.type === 'DEPOSIT') {
+                funded += t.amount;
+            }
+        });
+
+        return { spent, funded, balance: funded - spent };
+    }, [filteredTransactions]);
+
     return (
-        <div className="container mx-auto p-4 space-y-6 pb-24">
+        <div className="space-y-0">
+            {/* Month Slider */}
             <MonthSlider
                 selectedMonth={selectedMonth}
                 onMonthChange={setSelectedMonth}
             />
 
-            <TransactionList
-                transactions={filteredTransactions}
-                isLoading={isLoading}
-                onTransactionClick={(id) => setEditingTransactionId(id)}
-            />
+            {/* Summary Stats Bar */}
+            <div className="bg-card border-y border-border">
+                <div className="flex divide-x divide-border">
+                    <div className="flex-1 py-3 px-4 flex flex-col items-center justify-center">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
+                            Spent
+                        </span>
+                        <span className="text-sm font-bold text-destructive">
+                            -{formatCurrency(monthStats.spent, account?.currency || "GBP")}
+                        </span>
+                    </div>
+                    <div className="flex-1 py-3 px-4 flex flex-col items-center justify-center bg-muted/30">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
+                            Funded
+                        </span>
+                        <span className="text-sm font-bold text-primary">
+                            +{formatCurrency(monthStats.funded, account?.currency || "GBP")}
+                        </span>
+                    </div>
+                    <div className="flex-1 py-3 px-4 flex flex-col items-center justify-center">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
+                            Balance
+                        </span>
+                        <span className="text-sm font-bold text-foreground">
+                            {formatCurrency(monthStats.balance, account?.currency || "GBP")}
+                        </span>
+                    </div>
+                </div>
+            </div>
 
+            {/* Transaction List */}
+            <div className="pt-4">
+                <TransactionList
+                    transactions={filteredTransactions}
+                    isLoading={isLoading}
+                    onTransactionClick={(id) => setEditingTransactionId(id)}
+                />
+            </div>
+
+            {/* Sheets */}
             <AddExpenseSheet
                 isOpen={showAddExpense}
                 onClose={() => setShowAddExpense(false)}
@@ -111,7 +160,6 @@ export default function TransactionsPage() {
                 onSuccess={handleTransactionUpdated}
             />
 
-            {/* Show appropriate edit sheet based on transaction type */}
             {editingTransaction?.type === "EXPENSE" && (
                 <EditExpenseSheet
                     transactionId={editingTransactionId}
