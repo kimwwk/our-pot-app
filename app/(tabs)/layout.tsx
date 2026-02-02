@@ -11,7 +11,7 @@ export default function TabsLayout({
     return (
         <div className="flex flex-col min-h-screen">
             {/* Header with PotSwitcher */}
-            <header className="flex-none pt-safe-top z-30 pt-6 px-6">
+            <header className="flex-none z-30 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] px-6">
                 <div className="flex items-center justify-between">
                     <PotSwitcher />
                     <button className="h-10 w-10 flex items-center justify-center rounded-full bg-card text-muted-foreground hover:text-foreground ring-1 ring-border transition-colors">
