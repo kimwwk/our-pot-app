@@ -9,16 +9,21 @@ export default function TabsLayout({
     children: React.ReactNode
 }) {
     return (
-        <div className="flex flex-col min-h-screen pb-16">
+        <div className="flex flex-col min-h-screen">
             {/* Header with PotSwitcher */}
-            <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-lg pt-[env(safe-area-inset-top,0px)]">
-                <div className="container max-w-md mx-auto p-4 flex justify-between items-center">
+            <header className="flex-none z-30 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] px-6">
+                <div className="flex items-center justify-between">
                     <PotSwitcher />
+                    <button className="h-10 w-10 flex items-center justify-center rounded-full bg-card text-muted-foreground hover:text-foreground ring-1 ring-border transition-colors">
+                        <span className="material-symbols-outlined">notifications</span>
+                    </button>
                 </div>
             </header>
 
-            <main className="flex-1 container max-w-md mx-auto p-4">
-                {children}
+            <main className="flex-1 overflow-y-auto no-scrollbar pb-40">
+                <div className="max-w-md mx-auto px-6">
+                    {children}
+                </div>
             </main>
             <BottomNav />
         </div>

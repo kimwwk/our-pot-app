@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion } from "framer-motion"
-import { Bell, Users, ChevronRight, Moon, Palette, Download, Upload, Bug } from "lucide-react"
 import Image from "next/image"
 import { getAppInfo, type AppInfo } from "@/lib/utils/app-info"
 import { Button } from "@/components/ui/button"
@@ -17,6 +16,7 @@ import { useMembers } from "@/lib/data/hooks/useMembers"
 import { useAccount } from "@/lib/data/contexts/AccountContext"
 import { getDebugLogs, clearDebugLogs } from "@/lib/utils/debug-logger"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 export function SettingsTab() {
   const { theme, setTheme } = useTheme()
@@ -74,13 +74,13 @@ export function SettingsTab() {
       title: "Pot Settings",
       items: [
         {
-          icon: Users,
+          icon: "group",
           label: "Manage Members",
           description: `${members.filter(m => !m.is_kitty).length} members`,
           onClick: () => setShowMemberManager(true),
         },
         {
-          icon: Palette,
+          icon: "category",
           label: "Categories",
           description: `${categories.length} categories`,
           onClick: () => setShowCategoryManager(true),
@@ -91,13 +91,13 @@ export function SettingsTab() {
       title: "Data Management",
       items: [
         {
-          icon: Download,
+          icon: "download",
           label: "Backup Database",
           description: "Export your data",
           onClick: () => setShowBackupSheet(true),
         },
         {
-          icon: Upload,
+          icon: "upload",
           label: "Restore from Backup",
           description: "Import previous backup",
           onClick: () => setShowRestoreSheet(true),
@@ -108,7 +108,7 @@ export function SettingsTab() {
       title: "Notifications",
       items: [
         {
-          icon: Bell,
+          icon: "notifications",
           label: "Push Notifications",
           description: "Coming soon",
           toggle: true,
@@ -121,7 +121,7 @@ export function SettingsTab() {
       title: "Appearance",
       items: [
         {
-          icon: Moon,
+          icon: "dark_mode",
           label: "Dark Mode",
           toggle: true,
           enabled: theme === "dark",
@@ -133,7 +133,7 @@ export function SettingsTab() {
       title: "Developer Tools",
       items: [
         {
-          icon: Bug,
+          icon: "bug_report",
           label: "View Debug Logs",
           description: "Show console logs",
           onClick: handleShowDebugLogs,
@@ -144,17 +144,15 @@ export function SettingsTab() {
 
   if (!account) {
     return (
-      <div className="p-4 space-y-6">
-        <div>
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }
 
   return (
     <>
-      <div className="p-4 space-y-6 pb-24">
+      <div className="space-y-5 pt-4 pb-24">
         {/* Settings groups */}
         {settingGroups
           .filter(group => group.title !== "Developer Tools" || devModeEnabled)
@@ -163,10 +161,12 @@ export function SettingsTab() {
             key={group.title}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: groupIndex * 0.1 }}
+            transition={{ delay: groupIndex * 0.05 }}
           >
-            <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-1">{group.title}</h3>
-            <div className="rounded-2xl bg-card border border-border/50 overflow-hidden">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mb-3 px-1">
+              {group.title}
+            </h3>
+            <div className="rounded-2xl bg-card border border-border overflow-hidden">
               {group.items.map((item, itemIndex) => {
                 const isToggle = 'toggle' in item && item.toggle
                 const Wrapper = isToggle ? "div" : "button"
@@ -177,20 +177,26 @@ export function SettingsTab() {
                       disabled: 'disabled' in item ? item.disabled : false,
                       onClick: 'onClick' in item ? item.onClick : undefined,
                     })}
-                    className={`w-full flex items-center gap-4 p-4 transition-colors ${
+                    className={cn(
+                      "w-full flex items-center gap-4 p-4 transition-colors",
                       'disabled' in item && item.disabled
                         ? "opacity-50 cursor-not-allowed"
                         : isToggle
                         ? ""
-                        : "hover:bg-accent/50 active:bg-accent cursor-pointer"
-                    } ${itemIndex !== group.items.length - 1 ? "border-b border-border/50" : ""}`}
+                        : "hover:bg-muted/50 active:bg-muted cursor-pointer",
+                      itemIndex !== group.items.length - 1 && "border-b border-border"
+                    )}
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-                      <item.icon className="h-5 w-5 text-foreground" />
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/50">
+                      <span className="material-symbols-outlined text-foreground" style={{ fontSize: "22px" }}>
+                        {item.icon}
+                      </span>
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-medium text-foreground">{item.label}</p>
-                      {'description' in item && item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                      <p className="font-semibold text-foreground">{item.label}</p>
+                      {'description' in item && item.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                      )}
                     </div>
                     {isToggle && 'enabled' in item && 'onToggle' in item ? (
                       <Switch
@@ -199,7 +205,11 @@ export function SettingsTab() {
                         disabled={'disabled' in item ? (item.disabled as boolean) : false}
                       />
                     ) : (
-                      !('disabled' in item && item.disabled) && <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      !('disabled' in item && item.disabled) && (
+                        <span className="material-symbols-outlined text-muted-foreground" style={{ fontSize: "20px" }}>
+                          chevron_right
+                        </span>
+                      )
                     )}
                   </Wrapper>
                 )
@@ -212,23 +222,23 @@ export function SettingsTab() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: settingGroups.length * 0.1 }}
-          className="flex flex-col items-center justify-center pt-4 pb-8"
+          transition={{ delay: settingGroups.length * 0.05 }}
+          className="flex flex-col items-center justify-center pt-8 pb-8"
         >
           <button
             onClick={handleAboutTap}
-            className="flex flex-col items-center focus:outline-none active:opacity-70 transition-opacity"
+            className="flex flex-col items-center focus:outline-none active:scale-95 transition-transform"
           >
-            <div className="relative h-20 w-20 mb-3">
+            <div className="relative h-20 w-20 mb-4 rounded-2xl overflow-hidden shadow-lg shadow-primary/10">
               <Image
                 src="/icon1024.png"
                 alt="OurPot"
                 fill
-                className="rounded-2xl object-contain"
+                className="object-contain"
               />
             </div>
-            <p className="text-lg font-semibold text-foreground">OurPot</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-lg font-bold text-foreground">OurPot</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
               {appInfo ? `v${appInfo.version}${appInfo.build ? ` (${appInfo.build})` : ''}` : 'Loading...'}
             </p>
           </button>
@@ -265,12 +275,23 @@ export function SettingsTab() {
 
       {/* Debug Logs Modal */}
       {showDebugLogs && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-lg shadow-lg max-w-4xl w-full max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <div>
-                <h2 className="text-xl font-bold">Debug Logs</h2>
-                <p className="text-sm text-muted-foreground">Last {debugLogs.length} console messages</p>
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card rounded-2xl shadow-xl border border-border max-w-4xl w-full max-h-[80vh] flex flex-col"
+          >
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-muted/50 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-foreground" style={{ fontSize: "20px" }}>
+                    bug_report
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Debug Logs</h2>
+                  <p className="text-xs text-muted-foreground">Last {debugLogs.length} console messages</p>
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -280,12 +301,15 @@ export function SettingsTab() {
                     clearDebugLogs()
                     setDebugLogs([])
                   }}
+                  className="rounded-lg"
                 >
                   Clear
                 </Button>
                 <Button
                   variant="ghost"
+                  size="sm"
                   onClick={() => setShowDebugLogs(false)}
+                  className="rounded-lg"
                 >
                   Close
                 </Button>
@@ -294,18 +318,24 @@ export function SettingsTab() {
             <div className="flex-1 overflow-auto p-4">
               <div className="space-y-2 font-mono text-xs">
                 {debugLogs.length === 0 ? (
-                  <p className="text-muted-foreground">No logs yet. Logs will appear here as you use the app.</p>
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <span className="material-symbols-outlined text-muted-foreground mb-2" style={{ fontSize: "32px" }}>
+                      description
+                    </span>
+                    <p className="text-muted-foreground">No logs yet. Logs will appear here as you use the app.</p>
+                  </div>
                 ) : (
                   debugLogs.map((log, index) => (
                     <div
                       key={index}
-                      className={`p-2 rounded ${
+                      className={cn(
+                        "p-3 rounded-lg",
                         log.type === 'error'
-                          ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                          ? 'bg-destructive/10 text-destructive'
                           : log.type === 'warn'
-                          ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
-                          : 'bg-muted'
-                      }`}
+                          ? 'bg-warning/10 text-warning'
+                          : 'bg-muted/50'
+                      )}
                     >
                       <div className="flex items-start gap-2">
                         <span className="text-muted-foreground shrink-0">
@@ -320,7 +350,7 @@ export function SettingsTab() {
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </>

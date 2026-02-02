@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { KittyBalanceCard } from "@/components/features/dashboard/KittyBalanceCard";
-import { ToReimburseCard } from "@/components/features/dashboard/ToReimburseCard";
 import { QuickActions } from "@/components/features/dashboard/QuickActions";
+import { SpendingInsightCard } from "@/components/features/dashboard/SpendingInsightCard";
+import { MemberContributionsCard } from "@/components/features/dashboard/MemberContributionsCard";
 import { AddExpenseSheet } from "@/components/sheets/AddExpenseSheet";
 import { AddContributeSheet } from "@/components/sheets/AddContributeSheet";
 import { EditExpenseSheet } from "@/components/sheets/EditExpenseSheet";
@@ -27,7 +28,6 @@ export default function HomePage() {
     const { transactions, isLoading, refetch } = useTransactions({ limit: 5 });
     const router = useRouter();
 
-    // Find the transaction type for editing
     const editingTransaction = useMemo(() => {
         if (!editingTransactionId) return null;
         return transactions.find(t => t.id === editingTransactionId);
@@ -40,10 +40,7 @@ export default function HomePage() {
             const transactionRepo = new TransactionRepository(db);
             const memberRepo = new MemberRepository(db);
 
-            // Amount is coming in as float e.g 10.50
             const cents = Math.round(data.amount * 100);
-
-            // Check if member is kitty to determine status
             const member = await memberRepo.getById(data.memberId);
             const status = member?.is_kitty ? 'completed' : 'pending_reimbursement';
 
@@ -53,7 +50,6 @@ export default function HomePage() {
                 member_id: data.memberId,
                 category_id: data.categoryId,
                 type: "EXPENSE",
-                // Store as positive, trigger will handle sign
                 amount: Math.abs(cents),
                 merchant: data.description,
                 description: data.description,
@@ -66,7 +62,7 @@ export default function HomePage() {
 
             toast.success("Expense added");
             await reloadAccount();
-            refetch(); // Refresh list
+            refetch();
         } catch (err) {
             console.error(err);
             toast.error("Failed to add expense");
@@ -79,21 +75,42 @@ export default function HomePage() {
     };
 
     return (
-        <div className="container mx-auto p-4 space-y-6 pb-24">
+        <div className="space-y-6 pt-4">
+            {/* Hero Balance */}
             <KittyBalanceCard />
 
+            {/* Spending Insight */}
+            <SpendingInsightCard />
+
+            {/* Quick Actions Grid */}
             <QuickActions
                 onAddExpense={() => setShowAddExpense(true)}
                 onContribute={() => setShowContribute(true)}
                 onAskAgent={() => router.push('/agent')}
             />
 
-            <ToReimburseCard />
+            {/* Members */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">
+                        Members
+                    </h3>
+                </div>
+                <MemberContributionsCard />
+            </div>
 
-            <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold">Recent Activity</h2>
-                    <button onClick={() => router.push('/transactions')} className="text-sm text-primary">View All</button>
+            {/* Recent Activity */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">
+                        Recent Activity
+                    </h3>
+                    <button
+                        onClick={() => router.push('/transactions')}
+                        className="text-xs font-bold text-primary hover:text-primary/80 transition-colors"
+                    >
+                        View All
+                    </button>
                 </div>
                 <TransactionList
                     transactions={transactions.slice(0, 5)}
@@ -104,6 +121,7 @@ export default function HomePage() {
                 />
             </div>
 
+            {/* Sheets */}
             <AddExpenseSheet
                 isOpen={showAddExpense}
                 onClose={() => setShowAddExpense(false)}
@@ -115,7 +133,6 @@ export default function HomePage() {
                 onClose={() => setShowContribute(false)}
             />
 
-            {/* Show appropriate edit sheet based on transaction type */}
             {editingTransaction?.type === "EXPENSE" && (
                 <EditExpenseSheet
                     transactionId={editingTransactionId}
