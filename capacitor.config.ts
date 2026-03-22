@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.ourpot.app',
-  appName: 'our-pot',
+  appName: 'OurPot - Expense Jar',
   webDir: 'out', // Next.js static export output directory
   server: {
     androidScheme: 'https'
