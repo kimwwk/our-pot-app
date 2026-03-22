@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OurPot",
+  title: "OurPot - Expense Jar",
   description: "Expense tracking with AI agent",
 };
 
