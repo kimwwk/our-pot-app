@@ -12,6 +12,11 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
+# Google Tink / ErrorProne annotations (used by Capacitor SQLite encryption)
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn com.google.api.client.http.**
+
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable
