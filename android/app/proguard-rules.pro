@@ -7,15 +7,23 @@
 
 # Capacitor uses WebView with JS bridge
 -keep class com.getcapacitor.** { *; }
+-keep class com.getcapacitor.community.** { *; }
 -keep class com.ourpot.app.** { *; }
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
 
-# Google Tink / ErrorProne annotations (used by Capacitor SQLite encryption)
+# SQLite / encryption dependencies
+-keep class net.zetetic.** { *; }
+-keep class com.google.crypto.tink.** { *; }
+
+# Google Tink / ErrorProne annotations (used by Capacitor SQLite encryption
+# and pulled in transitively by firebase-analytics). Tink's KeysDownloader
+# optionally references Joda-Time, which isn't on the classpath.
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn javax.annotation.**
 -dontwarn com.google.api.client.http.**
+-dontwarn org.joda.time.**
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
