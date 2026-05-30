@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "267495521360",
+    "project_id": "ourpot",
+    "storage_bucket": "ourpot.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:267495521360:android:cd3fe038b2b3ec01126555",
+        "android_client_info": {
+          "package_name": "com.ourpot.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHsx6fk41QgaILwbUwG12OyGChTF51N2c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:267495521360:android:fea5f649567e6747126555",
+        "android_client_info": {
+          "package_name": "com.ourpot.app.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHsx6fk41QgaILwbUwG12OyGChTF51N2c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

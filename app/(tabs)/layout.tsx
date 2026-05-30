@@ -2,6 +2,7 @@
 
 import { BottomNav } from "@/components/common/BottomNav"
 import { PotSwitcher } from "@/components/common/PotSwitcher"
+import { AnalyticsTracker } from "@/components/common/AnalyticsTracker"
 
 export default function TabsLayout({
     children,
@@ -10,6 +11,7 @@ export default function TabsLayout({
 }) {
     return (
         <div className="flex flex-col min-h-screen">
+            <AnalyticsTracker />
             {/* Header with PotSwitcher */}
             <header className="flex-none z-30 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] px-6">
                 <div className="flex items-center justify-between">

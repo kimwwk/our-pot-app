@@ -14,7 +14,8 @@ import { ManageMembersSheet } from "@/components/sheets/ManageMembersSheet"
 import { useCategories } from "@/lib/data/hooks/useCategories"
 import { useMembers } from "@/lib/data/hooks/useMembers"
 import { useAccount } from "@/lib/data/contexts/AccountContext"
-import { getDebugLogs, clearDebugLogs } from "@/lib/utils/debug-logger"
+// NOTE: getDebugLogs is only used by the debug button, which is disabled for release (v2.1.0).
+import { clearDebugLogs } from "@/lib/utils/debug-logger"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
@@ -63,11 +64,13 @@ export function SettingsTab() {
     }, 2000)
   }
 
-  const handleShowDebugLogs = () => {
-    const logs = getDebugLogs()
-    setDebugLogs(logs)
-    setShowDebugLogs(true)
-  }
+  // Debug button disabled for release (v2.1.0). Re-enable by restoring this handler,
+  // the "Developer Tools" group below, and the `getDebugLogs` import.
+  // const handleShowDebugLogs = () => {
+  //   const logs = getDebugLogs()
+  //   setDebugLogs(logs)
+  //   setShowDebugLogs(true)
+  // }
 
   const settingGroups = [
     {
@@ -129,17 +132,18 @@ export function SettingsTab() {
         },
       ],
     },
-    {
-      title: "Developer Tools",
-      items: [
-        {
-          icon: "bug_report",
-          label: "View Debug Logs",
-          description: "Show console logs",
-          onClick: handleShowDebugLogs,
-        },
-      ],
-    },
+    // Debug button disabled for release (v2.1.0). Re-enable with handleShowDebugLogs above.
+    // {
+    //   title: "Developer Tools",
+    //   items: [
+    //     {
+    //       icon: "bug_report",
+    //       label: "View Debug Logs",
+    //       description: "Show console logs",
+    //       onClick: handleShowDebugLogs,
+    //     },
+    //   ],
+    // },
   ]
 
   if (!account) {
